@@ -1,0 +1,33 @@
+/* From Formula to Stan — light styling on top of the cosmo theme */
+
+/* Formula card: a calm, readable box for the math of each chapter */
+.formula-card {
+  border-left: 4px solid #0072B2;
+  background: rgba(0, 114, 178, 0.05);
+  padding: 0.8rem 1.2rem;
+  margin: 1.2rem 0;
+  border-radius: 4px;
+}
+
+.formula-card .card-title {
+  font-weight: 700;
+  color: #0072B2;
+  margin-bottom: 0.3rem;
+}
+
+/* "Questions of this chapter" box */
+.chapter-questions {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 6px;
+  padding: 0.8rem 1.2rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Keep Stan code blocks readable */
+pre.sourceCode.stan, div.sourceCode pre.stan {
+  font-size: 0.9em;
+}
+
+table {
+  font-size: 0.95em;
+}

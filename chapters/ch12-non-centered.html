@@ -1,0 +1,1934 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-Hans" xml:lang="zh-Hans"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.37">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="description" content="为什么一行改写就能消除漏斗？非中心化与中心化是同一个模型吗？什么时候中心化反而更好？">
+
+<title>第 12 章　非中心化 – 从公式到 Stan</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+/* CSS for citations */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+  margin-bottom: 0em;
+}
+.hanging-indent div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}</style>
+
+
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<link href="../chapters/ch13-continuous-latent.html" rel="next">
+<link href="../chapters/ch11-funnel.html" rel="prev">
+<script src="../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-acf12a64177840b8d86f2d4f01b2e9fb.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-dark-23bbe8b5e4efc1e257f6d59dce478b08.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-acf12a64177840b8d86f2d4f01b2e9fb.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap-da9c337e22b2253d242d90aca6293bb9.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-dark-9d1ac14fea2e996312cb70439bb7d11c.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../site_libs/bootstrap/bootstrap-da9c337e22b2253d242d90aca6293bb9.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "没有结果",
+    "search-matching-documents-text": "匹配的文档",
+    "search-copy-link-title": "复制搜索链接",
+    "search-hide-matches-text": "隐藏其它匹配结果",
+    "search-more-match-text": "更多匹配结果",
+    "search-more-matches-text": "更多匹配结果",
+    "search-clear-button-title": "清除",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "取消",
+    "search-submit-button-title": "提交",
+    "search-label": "搜索"
+  }
+}</script>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="../styles.css">
+</head>
+
+<body class="nav-sidebar docked nav-fixed quarto-light"><script id="quarto-html-before-body" type="application/javascript">
+    const toggleBodyColorMode = (bsSheetEl) => {
+      const mode = bsSheetEl.getAttribute("data-mode");
+      const bodyEl = window.document.querySelector("body");
+      if (mode === "dark") {
+        bodyEl.classList.add("quarto-dark");
+        bodyEl.classList.remove("quarto-light");
+      } else {
+        bodyEl.classList.add("quarto-light");
+        bodyEl.classList.remove("quarto-dark");
+      }
+    }
+    const toggleBodyColorPrimary = () => {
+      const bsSheetEl = window.document.querySelector("link#quarto-bootstrap:not([rel=disabled-stylesheet])");
+      if (bsSheetEl) {
+        toggleBodyColorMode(bsSheetEl);
+      }
+    }
+    const setColorSchemeToggle = (alternate) => {
+      const toggles = window.document.querySelectorAll('.quarto-color-scheme-toggle');
+      for (let i=0; i < toggles.length; i++) {
+        const toggle = toggles[i];
+        if (toggle) {
+          if (alternate) {
+            toggle.classList.add("alternate");
+          } else {
+            toggle.classList.remove("alternate");
+          }
+        }
+      }
+    };
+    const toggleColorMode = (alternate) => {
+      // Switch the stylesheets
+      const primaryStylesheets = window.document.querySelectorAll('link.quarto-color-scheme:not(.quarto-color-alternate)');
+      const alternateStylesheets = window.document.querySelectorAll('link.quarto-color-scheme.quarto-color-alternate');
+      manageTransitions('#quarto-margin-sidebar .nav-link', false);
+      if (alternate) {
+        // note: dark is layered on light, we don't disable primary!
+        enableStylesheet(alternateStylesheets);
+        for (const sheetNode of alternateStylesheets) {
+          if (sheetNode.id === "quarto-bootstrap") {
+            toggleBodyColorMode(sheetNode);
+          }
+        }
+      } else {
+        disableStylesheet(alternateStylesheets);
+        enableStylesheet(primaryStylesheets)
+        toggleBodyColorPrimary();
+      }
+      manageTransitions('#quarto-margin-sidebar .nav-link', true);
+      // Switch the toggles
+      setColorSchemeToggle(alternate)
+      // Hack to workaround the fact that safari doesn't
+      // properly recolor the scrollbar when toggling (#1455)
+      if (navigator.userAgent.indexOf('Safari') > 0 && navigator.userAgent.indexOf('Chrome') == -1) {
+        manageTransitions("body", false);
+        window.scrollTo(0, 1);
+        setTimeout(() => {
+          window.scrollTo(0, 0);
+          manageTransitions("body", true);
+        }, 40);
+      }
+    }
+    const disableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        stylesheet.rel = 'disabled-stylesheet';
+      }
+    }
+    const enableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        if(stylesheet.rel !== 'stylesheet') { // for Chrome, which will still FOUC without this check
+          stylesheet.rel = 'stylesheet';
+        }
+      }
+    }
+    const manageTransitions = (selector, allowTransitions) => {
+      const els = window.document.querySelectorAll(selector);
+      for (let i=0; i < els.length; i++) {
+        const el = els[i];
+        if (allowTransitions) {
+          el.classList.remove('notransition');
+        } else {
+          el.classList.add('notransition');
+        }
+      }
+    }
+    const isFileUrl = () => {
+      return window.location.protocol === 'file:';
+    }
+    const hasAlternateSentinel = () => {
+      let styleSentinel = getColorSchemeSentinel();
+      if (styleSentinel !== null) {
+        return styleSentinel === "alternate";
+      } else {
+        return false;
+      }
+    }
+    const setStyleSentinel = (alternate) => {
+      const value = alternate ? "alternate" : "default";
+      if (!isFileUrl()) {
+        window.localStorage.setItem("quarto-color-scheme", value);
+      } else {
+        localAlternateSentinel = value;
+      }
+    }
+    const getColorSchemeSentinel = () => {
+      if (!isFileUrl()) {
+        const storageValue = window.localStorage.getItem("quarto-color-scheme");
+        return storageValue != null ? storageValue : localAlternateSentinel;
+      } else {
+        return localAlternateSentinel;
+      }
+    }
+    const toggleGiscusIfUsed = (isAlternate, darkModeDefault) => {
+      const baseTheme = document.querySelector('#giscus-base-theme')?.value ?? 'light';
+      const alternateTheme = document.querySelector('#giscus-alt-theme')?.value ?? 'dark';
+      let newTheme = '';
+      if(authorPrefersDark) {
+        newTheme = isAlternate ? baseTheme : alternateTheme;
+      } else {
+        newTheme = isAlternate ? alternateTheme : baseTheme;
+      }
+      const changeGiscusTheme = () => {
+        // From: https://github.com/giscus/giscus/issues/336
+        const sendMessage = (message) => {
+          const iframe = document.querySelector('iframe.giscus-frame');
+          if (!iframe) return;
+          iframe.contentWindow.postMessage({ giscus: message }, 'https://giscus.app');
+        }
+        sendMessage({
+          setConfig: {
+            theme: newTheme
+          }
+        });
+      }
+      const isGiscussLoaded = window.document.querySelector('iframe.giscus-frame') !== null;
+      if (isGiscussLoaded) {
+        changeGiscusTheme();
+      }
+    };
+    const authorPrefersDark = false;
+    const darkModeDefault = authorPrefersDark;
+      document.querySelector('link#quarto-text-highlighting-styles.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+      document.querySelector('link#quarto-bootstrap.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+    let localAlternateSentinel = darkModeDefault ? 'alternate' : 'default';
+    // Dark / light mode switch
+    window.quartoToggleColorScheme = () => {
+      // Read the current dark / light value
+      let toAlternate = !hasAlternateSentinel();
+      toggleColorMode(toAlternate);
+      setStyleSentinel(toAlternate);
+      toggleGiscusIfUsed(toAlternate, darkModeDefault);
+      window.dispatchEvent(new Event('resize'));
+    };
+    // Switch to dark mode if need be
+    if (hasAlternateSentinel()) {
+      toggleColorMode(true);
+    } else {
+      toggleColorMode(false);
+    }
+  </script>
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="../index.html">
+    <span class="navbar-title">从公式到 Stan</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="搜索"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="展开或折叠导航栏" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link active" href="../index.html" aria-current="page"> 
+<span class="menu-text">首页</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../conventions.html"> 
+<span class="menu-text">代码约定</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/perlatex/from-formula-to-stan"> <i class="bi bi-github" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+  <a href="" class="quarto-color-scheme-toggle quarto-navigation-tool  px-1" onclick="window.quartoToggleColorScheme(); return false;" title="切换深色模式"><i class="bi"></i></a>
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="展开或折叠侧边栏导航" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../chapters/ch10-hierarchical.html">第三单元 · 层级</a></li><li class="breadcrumb-item"><a href="../chapters/ch12-non-centered.html">第 12 章　非中心化</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="展开或折叠侧边栏导航" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">从公式到 Stan</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../conventions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">代码约定</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
+ <span class="menu-text">第一单元 · 入门</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="展开或折叠此栏">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch01-why-stan.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 1 章　为什么学 Stan</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch02-skeleton.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 2 章　Stan 程序的骨架</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch03-types-constraints.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 3 章　数据类型与约束</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch04-target.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 4 章　<code>target +=</code> 与 <code>~</code></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true">
+ <span class="menu-text">第二单元 · 回归</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="展开或折叠此栏">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch05-linear-regression.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 5 章　线性回归：公式逐行变代码</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch06-run-diagnose.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 6 章　运行、诊断与后验整理</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch07-logistic.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 7 章　Logistic：只换似然</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch08-priors.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 8 章　先验与先验预测检查</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch09-recover-parameters.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 9 章　模拟数据，找回参数</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
+ <span class="menu-text">第三单元 · 层级</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="展开或折叠此栏">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch10-hierarchical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 10 章　层级模型：部分池化</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch11-funnel.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 11 章　漏斗与发散</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch12-non-centered.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">第 12 章　非中心化</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true">
+ <span class="menu-text">第四单元 · 潜变量</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true" aria-label="展开或折叠此栏">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch13-continuous-latent.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 13 章　连续潜变量</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch14-no-discrete-parameters.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 14 章　Stan 为什么不能有离散参数</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch15-log-sum-exp.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 15 章　<code>log_sum_exp</code>：边缘化离散变量</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">本页目录</h2>
+   
+  <ul>
+  <li><a href="#本章要回答的问题" id="toc-本章要回答的问题" class="nav-link active" data-scroll-target="#本章要回答的问题"><span class="header-section-number">1</span> 本章要回答的问题</a></li>
+  <li><a href="#公式卡片" id="toc-公式卡片" class="nav-link" data-scroll-target="#公式卡片"><span class="header-section-number">2</span> 公式卡片</a></li>
+  <li><a href="#模拟数据" id="toc-模拟数据" class="nav-link" data-scroll-target="#模拟数据"><span class="header-section-number">3</span> 模拟数据</a></li>
+  <li><a href="#stan-代码" id="toc-stan-代码" class="nav-link" data-scroll-target="#stan-代码"><span class="header-section-number">4</span> Stan 代码</a></li>
+  <li><a href="#r-端运行" id="toc-r-端运行" class="nav-link" data-scroll-target="#r-端运行"><span class="header-section-number">5</span> R 端运行</a></li>
+  <li><a href="#后验整理与可视化" id="toc-后验整理与可视化" class="nav-link" data-scroll-target="#后验整理与可视化"><span class="header-section-number">6</span> 后验整理与可视化</a>
+  <ul class="collapse">
+  <li><a href="#诊断对比" id="toc-诊断对比" class="nav-link" data-scroll-target="#诊断对比"><span class="header-section-number">6.1</span> 诊断对比</a></li>
+  <li><a href="#采样器眼中的几何" id="toc-采样器眼中的几何" class="nav-link" data-scroll-target="#采样器眼中的几何"><span class="header-section-number">6.2</span> 采样器眼中的几何</a></li>
+  <li><a href="#tau-的后验" id="toc-tau-的后验" class="nav-link" data-scroll-target="#tau-的后验"><span class="header-section-number">6.3</span> <span class="math inline">\(\tau\)</span> 的后验</a></li>
+  <li><a href="#neal-漏斗的非中心化" id="toc-neal-漏斗的非中心化" class="nav-link" data-scroll-target="#neal-漏斗的非中心化"><span class="header-section-number">6.4</span> Neal 漏斗的非中心化</a></li>
+  </ul></li>
+  <li><a href="#为什么这样写" id="toc-为什么这样写" class="nav-link" data-scroll-target="#为什么这样写"><span class="header-section-number">7</span> 为什么这样写</a>
+  <ul class="collapse">
+  <li><a href="#为什么一行改写就能消除漏斗" id="toc-为什么一行改写就能消除漏斗" class="nav-link" data-scroll-target="#为什么一行改写就能消除漏斗"><span class="header-section-number">7.1</span> 为什么一行改写就能消除漏斗？</a></li>
+  <li><a href="#同一个模型不同的坐标系" id="toc-同一个模型不同的坐标系" class="nav-link" data-scroll-target="#同一个模型不同的坐标系"><span class="header-section-number">7.2</span> 同一个模型，不同的坐标系</a></li>
+  <li><a href="#什么时候中心化反而更好" id="toc-什么时候中心化反而更好" class="nav-link" data-scroll-target="#什么时候中心化反而更好"><span class="header-section-number">7.3</span> 什么时候中心化反而更好？</a></li>
+  </ul></li>
+  <li><a href="#常见错误" id="toc-常见错误" class="nav-link" data-scroll-target="#常见错误"><span class="header-section-number">8</span> 常见错误</a></li>
+  <li><a href="#练习" id="toc-练习" class="nav-link" data-scroll-target="#练习"><span class="header-section-number">9</span> 练习</a></li>
+  <li><a href="#小结" id="toc-小结" class="nav-link" data-scroll-target="#小结"><span class="header-section-number">10</span> 小结</a></li>
+  <li><a href="#延伸" id="toc-延伸" class="nav-link" data-scroll-target="#延伸"><span class="header-section-number">11</span> 延伸</a></li>
+  <li><a href="#参考资料" id="toc-参考资料" class="nav-link" data-scroll-target="#参考资料"><span class="header-section-number">12</span> 参考资料</a></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/perlatex/from-formula-to-stan/blob/main/chapters/ch12-non-centered.qmd" class="toc-action"><i class="bi bi-github"></i>查看代码</a></li><li><a href="https://github.com/perlatex/from-formula-to-stan/issues/new" class="toc-action"><i class="bi empty"></i>反馈问题</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../chapters/ch10-hierarchical.html">第三单元 · 层级</a></li><li class="breadcrumb-item"><a href="../chapters/ch12-non-centered.html">第 12 章　非中心化</a></li></ol></nav>
+<div class="quarto-title">
+<h1 class="title">第 12 章　非中心化</h1>
+</div>
+
+<div>
+  <div class="description">
+    为什么一行改写就能消除漏斗？非中心化与中心化是同一个模型吗？什么时候中心化反而更好？
+  </div>
+</div>
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p><a href="../chapters/ch11-funnel.html">第 11 章</a>看到，中心化写法的层级模型在数据信息弱、组间差异小时会陷入漏斗，产生发散，调高 <code>adapt_delta</code> 也无济于事。</p>
+<p>本章给出解决办法：<strong>非中心化参数化</strong>。它不改变模型，只改变采样器“看待”模型的坐标系。改写只有一行，效果却立竿见影。这正是<a href="../chapters/ch05-linear-regression.html">第 5 章</a>中心化 <span class="math inline">\(x\)</span> 时就已埋下的伏笔：<strong>我们可以通过改写，构造一个 HMC 更容易行走的后验几何。</strong></p>
+<section id="本章要回答的问题" class="level2" data-number="1">
+<h2 data-number="1" class="anchored" data-anchor-id="本章要回答的问题"><span class="header-section-number">1</span> 本章要回答的问题</h2>
+<div class="chapter-questions">
+<ol type="1">
+<li>为什么一行改写就能消除漏斗？</li>
+<li>非中心化在数学上和中心化是同一个模型吗？</li>
+<li>什么时候非中心化反而不如中心化？</li>
+</ol>
+</div>
+</section>
+<section id="公式卡片" class="level2" data-number="2">
+<h2 data-number="2" class="anchored" data-anchor-id="公式卡片"><span class="header-section-number">2</span> 公式卡片</h2>
+<div class="formula-card">
+<p><span class="card-title">中心化与非中心化</span></p>
+<p><strong>中心化</strong>：直接对 <span class="math inline">\(\theta_j\)</span> 采样</p>
+<p><span class="math display">\[
+\theta_j \sim \operatorname{Normal}(\mu,\ \tau)
+\]</span></p>
+<p><strong>非中心化</strong>：对标准化的 <span class="math inline">\(\theta_j^{\text{raw}}\)</span> 采样，再变换回去</p>
+<p><span class="math display">\[
+\theta_j^{\text{raw}} \sim \operatorname{Normal}(0,\ 1), \qquad \theta_j = \mu + \tau\, \theta_j^{\text{raw}}
+\]</span></p>
+<p>两者的似然部分完全相同：</p>
+<p><span class="math display">\[
+y_j \sim \operatorname{Normal}(\theta_j,\ s_j)
+\]</span></p>
+</div>
+<p>为什么两者是同一个模型？如果 <span class="math inline">\(Z \sim \operatorname{Normal}(0, 1)\)</span>，那么 <span class="math inline">\(\mu + \tau Z \sim \operatorname{Normal}(\mu, \tau)\)</span>。正态分布的这个性质保证了：<strong><span class="math inline">\(\theta_j\)</span> 的分布在两种写法下完全相同</strong>，只是采样器直接操作的变量不同。</p>
+</section>
+<section id="模拟数据" class="level2" data-number="3">
+<h2 data-number="3" class="anchored" data-anchor-id="模拟数据"><span class="header-section-number">3</span> 模拟数据</h2>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyverse)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(cmdstanr)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(posterior)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidybayes)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"R/theme.R"</span>)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"R/utils.R"</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>使用与<a href="../chapters/ch11-funnel.html">第 11 章</a>完全相同的数据：8 项研究，标准误大，组间差异小。</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">2026</span>)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>J          <span class="ot">&lt;-</span> <span class="dv">8</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>mu_true    <span class="ot">&lt;-</span> <span class="dv">4</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>tau_true   <span class="ot">&lt;-</span> <span class="dv">2</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>se         <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="dv">15</span>, <span class="dv">10</span>, <span class="dv">16</span>, <span class="dv">11</span>, <span class="dv">9</span>, <span class="dv">11</span>, <span class="dv">10</span>, <span class="dv">18</span>)</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>theta_true <span class="ot">&lt;-</span> <span class="fu">rnorm</span>(J, mu_true, tau_true)</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>y          <span class="ot">&lt;-</span> <span class="fu">rnorm</span>(J, theta_true, se)</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>stan_data <span class="ot">&lt;-</span> <span class="fu">list</span>(<span class="at">J =</span> J, <span class="at">y =</span> y, <span class="at">se =</span> se)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="stan-代码" class="level2" data-number="4">
+<h2 data-number="4" class="anchored" data-anchor-id="stan-代码"><span class="header-section-number">4</span> Stan 代码</h2>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode stan code-with-copy"><code class="sourceCode stan"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Chapter 12: Hierarchical model for group estimates (non-centered parameterization)</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co">//</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co">//   y_j       ~ Normal(theta_j, se_j)      se_j known</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co">//   theta_j   = mu + tau * theta_raw_j</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="co">//   theta_raw ~ Normal(0, 1)</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="co">//   mu        ~ Normal(0, 5)</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="co">//   tau       ~ Normal+(0, 5)</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> {</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span>&lt;<span class="kw">lower</span>=<span class="dv">1</span>&gt; J;               <span class="co">// number of studies</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[J] y;                  <span class="co">// estimated effect in each study</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>&gt;[J] se;        <span class="co">// standard error of each estimate</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="kw">parameters</span> {</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span> mu;                      <span class="co">// average effect</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>&gt; tau;            <span class="co">// between-study SD</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[J] theta_raw;          <span class="co">// standardized study effects</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a><span class="kw">transformed parameters</span> {</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[J] theta = mu + tau * theta_raw;    <span class="co">// true effect in each study</span></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a><span class="kw">model</span> {</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> normal_lpdf(mu | <span class="dv">0</span>, <span class="dv">5</span>);</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> normal_lpdf(tau | <span class="dv">0</span>, <span class="dv">5</span>);</span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> std_normal_lpdf(theta_raw);      <span class="co">// non-centered: theta_raw does not depend on tau</span></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> normal_lpdf(y | theta, se);</span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<p>与第 11 章的中心化写法 <code>stan/ch11_centered.stan</code> 相比：</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>位置</th>
+<th>中心化</th>
+<th>非中心化</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>parameters</code></td>
+<td><code>vector[J] theta;</code></td>
+<td><code>vector[J] theta_raw;</code></td>
+</tr>
+<tr class="even">
+<td><code>transformed parameters</code></td>
+<td>—</td>
+<td><code>vector[J] theta = mu + tau * theta_raw;</code></td>
+</tr>
+<tr class="odd">
+<td>先验</td>
+<td><code>normal_lpdf(theta | mu, tau)</code></td>
+<td><code>std_normal_lpdf(theta_raw)</code></td>
+</tr>
+<tr class="even">
+<td>似然</td>
+<td><code>normal_lpdf(y | theta, se)</code></td>
+<td><code>normal_lpdf(y | theta, se)</code>（不变）</td>
+</tr>
+</tbody>
+</table>
+<p><code>theta</code> 从 <code>parameters</code> 移到了 <code>transformed parameters</code>。它仍然出现在输出中，汇总和画图的方式与之前完全一样。<code>std_normal_lpdf(x)</code> 等价于 <code>normal_lpdf(x | 0, 1)</code>，但计算更快。</p>
+</section>
+<section id="r-端运行" class="level2" data-number="5">
+<h2 data-number="5" class="anchored" data-anchor-id="r-端运行"><span class="header-section-number">5</span> R 端运行</h2>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>mod_centered    <span class="ot">&lt;-</span> <span class="fu">cmdstan_model</span>(<span class="st">"stan/ch11_centered.stan"</span>)</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>mod_noncentered <span class="ot">&lt;-</span> <span class="fu">cmdstan_model</span>(<span class="st">"stan/ch12_noncentered.stan"</span>)</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>fit_centered <span class="ot">&lt;-</span> mod_centered<span class="sc">$</span><span class="fu">sample</span>(</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> stan_data, <span class="at">seed =</span> <span class="dv">2026</span>, <span class="at">chains =</span> <span class="dv">4</span>, <span class="at">parallel_chains =</span> <span class="dv">4</span>, <span class="at">refresh =</span> <span class="dv">0</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; Running MCMC with 4 parallel chains...
+#&gt; 
+#&gt; Chain 1 finished in 0.1 seconds.
+#&gt; Chain 2 finished in 0.1 seconds.
+#&gt; Chain 3 finished in 0.1 seconds.
+#&gt; Chain 4 finished in 0.1 seconds.
+#&gt; 
+#&gt; All 4 chains finished successfully.
+#&gt; Mean chain execution time: 0.1 seconds.
+#&gt; Total execution time: 0.4 seconds.</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>fit_noncentered <span class="ot">&lt;-</span> mod_noncentered<span class="sc">$</span><span class="fu">sample</span>(</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> stan_data, <span class="at">seed =</span> <span class="dv">2026</span>, <span class="at">chains =</span> <span class="dv">4</span>, <span class="at">parallel_chains =</span> <span class="dv">4</span>, <span class="at">refresh =</span> <span class="dv">0</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; Running MCMC with 4 parallel chains...
+#&gt; 
+#&gt; Chain 1 finished in 0.0 seconds.
+#&gt; Chain 2 finished in 0.0 seconds.
+#&gt; Chain 3 finished in 0.0 seconds.
+#&gt; Chain 4 finished in 0.0 seconds.
+#&gt; 
+#&gt; All 4 chains finished successfully.
+#&gt; Mean chain execution time: 0.0 seconds.
+#&gt; Total execution time: 0.2 seconds.</code></pre>
+</div>
+</div>
+</section>
+<section id="后验整理与可视化" class="level2" data-number="6">
+<h2 data-number="6" class="anchored" data-anchor-id="后验整理与可视化"><span class="header-section-number">6</span> 后验整理与可视化</h2>
+<section id="诊断对比" class="level3" data-number="6.1">
+<h3 data-number="6.1" class="anchored" data-anchor-id="诊断对比"><span class="header-section-number">6.1</span> 诊断对比</h3>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>diag_row <span class="ot">&lt;-</span> <span class="cf">function</span>(fit, label) {</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tibble</span>(</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">parameterization =</span> label,</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">divergences      =</span> <span class="fu">sum</span>(fit<span class="sc">$</span><span class="fu">diagnostic_summary</span>()<span class="sc">$</span>num_divergent),</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">tau_rhat         =</span> fit<span class="sc">$</span><span class="fu">summary</span>(<span class="st">"tau"</span>, <span class="st">"rhat"</span>)<span class="sc">$</span>rhat,</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">tau_ess_bulk     =</span> fit<span class="sc">$</span><span class="fu">summary</span>(<span class="st">"tau"</span>, <span class="st">"ess_bulk"</span>)<span class="sc">$</span>ess_bulk,</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">tau_ess_tail     =</span> fit<span class="sc">$</span><span class="fu">summary</span>(<span class="st">"tau"</span>, <span class="st">"ess_tail"</span>)<span class="sc">$</span>ess_tail</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="fu">bind_rows</span>(</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">diag_row</span>(fit_centered, <span class="st">"Centered"</span>),</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">diag_row</span>(fit_noncentered, <span class="st">"Non-centered"</span>)</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>) <span class="sc">|&gt;</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>  knitr<span class="sc">::</span><span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">2</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="tbl-compare" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-compare-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+表&nbsp;1: 中心化与非中心化在同一份数据上的诊断对比
+</figcaption>
+<div aria-describedby="tbl-compare-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output-display">
+<table class="cell caption-top table table-sm table-striped small">
+<thead>
+<tr class="header">
+<th style="text-align: left;">parameterization</th>
+<th style="text-align: right;">divergences</th>
+<th style="text-align: right;">tau_rhat</th>
+<th style="text-align: right;">tau_ess_bulk</th>
+<th style="text-align: right;">tau_ess_tail</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Centered</td>
+<td style="text-align: right;">198</td>
+<td style="text-align: right;">1.05</td>
+<td style="text-align: right;">99.85</td>
+<td style="text-align: right;">92.17</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Non-centered</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">1.00</td>
+<td style="text-align: right;">2064.55</td>
+<td style="text-align: right;">1574.21</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<p>发散从 198 次降到了 0 次，<span class="math inline">\(\tau\)</span> 的有效样本量成倍增加。（非中心化之后偶尔仍可能出现一两次孤立的发散；只要它们不再成片集中在某个区域，就可以把 <code>adapt_delta</code> 略微调高到 0.9 或 0.95 来消除。）</p>
+</section>
+<section id="采样器眼中的几何" class="level3" data-number="6.2">
+<h3 data-number="6.2" class="anchored" data-anchor-id="采样器眼中的几何"><span class="header-section-number">6.2</span> 采样器眼中的几何</h3>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>geometry <span class="ot">&lt;-</span> <span class="fu">bind_rows</span>(</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  fit_centered<span class="sc">$</span><span class="fu">draws</span>(<span class="fu">c</span>(<span class="st">"tau"</span>, <span class="st">"theta[1]"</span>), <span class="at">format =</span> <span class="st">"df"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">as_tibble</span>() <span class="sc">|&gt;</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">transmute</span>(tau, <span class="at">coordinate =</span> <span class="st">`</span><span class="at">theta[1]</span><span class="st">`</span>, <span class="at">version =</span> <span class="st">"Centered: theta[1]"</span>,</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>              <span class="at">divergent =</span> fit_centered<span class="sc">$</span><span class="fu">sampler_diagnostics</span>(<span class="at">format =</span> <span class="st">"df"</span>)<span class="sc">$</span>divergent__ <span class="sc">==</span> <span class="dv">1</span>),</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  fit_noncentered<span class="sc">$</span><span class="fu">draws</span>(<span class="fu">c</span>(<span class="st">"tau"</span>, <span class="st">"theta_raw[1]"</span>), <span class="at">format =</span> <span class="st">"df"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">as_tibble</span>() <span class="sc">|&gt;</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">transmute</span>(tau, <span class="at">coordinate =</span> <span class="st">`</span><span class="at">theta_raw[1]</span><span class="st">`</span>, <span class="at">version =</span> <span class="st">"Non-centered: theta_raw[1]"</span>,</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>              <span class="at">divergent =</span> fit_noncentered<span class="sc">$</span><span class="fu">sampler_diagnostics</span>(<span class="at">format =</span> <span class="st">"df"</span>)<span class="sc">$</span>divergent__ <span class="sc">==</span> <span class="dv">1</span>)</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(geometry, <span class="fu">aes</span>(<span class="at">x =</span> coordinate, <span class="at">y =</span> <span class="fu">log</span>(tau))) <span class="sc">+</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">data =</span> <span class="fu">filter</span>(geometry, <span class="sc">!</span>divergent),</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>             <span class="at">colour =</span> f2s_colors[[<span class="st">"post"</span>]], <span class="at">alpha =</span> <span class="fl">0.25</span>, <span class="at">size =</span> <span class="fl">0.7</span>) <span class="sc">+</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">data =</span> <span class="fu">filter</span>(geometry, divergent),</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>             <span class="at">colour =</span> f2s_colors[[<span class="st">"truth"</span>]], <span class="at">size =</span> <span class="fl">1.5</span>) <span class="sc">+</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span> version, <span class="at">scales =</span> <span class="st">"free_x"</span>) <span class="sc">+</span></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="cn">NULL</span>, <span class="at">y =</span> <span class="st">"log(tau)"</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output-display">
+<div id="fig-geometry" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-geometry-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ch12-non-centered_files/figure-html/fig-geometry-1.png" class="img-fluid figure-img" width="672">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-geometry-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+图&nbsp;1: 左：中心化写法中采样器面对的 (θ₁, log τ)，呈漏斗形；右：非中心化写法中采样器面对的 (θ₁ʳᵃʷ, log τ)，漏斗消失了。橙色点为发散。
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>在非中心化的坐标中，<span class="math inline">\(\theta_j^{\text{raw}}\)</span> 的先验是标准正态，与 <span class="math inline">\(\tau\)</span> 无关。<span class="math inline">\(\tau\)</span> 变小时，<span class="math inline">\(\theta_j^{\text{raw}}\)</span> 的范围并不收缩，采样器面对的是一个大致“圆润”的分布，用同一个步长就能在各处顺利行走。</p>
+</section>
+<section id="tau-的后验" class="level3" data-number="6.3">
+<h3 data-number="6.3" class="anchored" data-anchor-id="tau-的后验"><span class="header-section-number">6.3</span> <span class="math inline">\(\tau\)</span> 的后验</h3>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">bind_rows</span>(</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  fit_centered <span class="sc">|&gt;</span> <span class="fu">spread_draws</span>(tau) <span class="sc">|&gt;</span> <span class="fu">mutate</span>(<span class="at">version =</span> <span class="st">"Centered"</span>),</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  fit_noncentered <span class="sc">|&gt;</span> <span class="fu">spread_draws</span>(tau) <span class="sc">|&gt;</span> <span class="fu">mutate</span>(<span class="at">version =</span> <span class="st">"Non-centered"</span>)</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>) <span class="sc">|&gt;</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> tau, <span class="at">colour =</span> version)) <span class="sc">+</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_density</span>(<span class="at">linewidth =</span> <span class="fl">0.9</span>, <span class="at">bounds =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="cn">Inf</span>)) <span class="sc">+</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_colour_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="at">Centered =</span> f2s_colors[[<span class="st">"truth"</span>]],</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>                                 <span class="st">`</span><span class="at">Non-centered</span><span class="st">`</span> <span class="ot">=</span> f2s_colors[[<span class="st">"post"</span>]])) <span class="sc">+</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"tau"</span>, <span class="at">y =</span> <span class="st">"Density"</span>, <span class="at">colour =</span> <span class="cn">NULL</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output-display">
+<div id="fig-tau" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-tau-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ch12-non-centered_files/figure-html/fig-tau-1.png" class="img-fluid figure-img" width="672">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-tau-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+图&nbsp;2: 两种写法下 τ 的后验。中心化写法没能充分探索 τ 接近 0 的区域。
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">bind_rows</span>(</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  fit_centered<span class="sc">$</span><span class="fu">summary</span>(<span class="st">"tau"</span>, <span class="sc">~</span> <span class="fu">quantile</span>(.x, <span class="fu">c</span>(<span class="fl">0.05</span>, <span class="fl">0.25</span>, <span class="fl">0.5</span>))) <span class="sc">|&gt;</span> <span class="fu">mutate</span>(<span class="at">version =</span> <span class="st">"Centered"</span>),</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>  fit_noncentered<span class="sc">$</span><span class="fu">summary</span>(<span class="st">"tau"</span>, <span class="sc">~</span> <span class="fu">quantile</span>(.x, <span class="fu">c</span>(<span class="fl">0.05</span>, <span class="fl">0.25</span>, <span class="fl">0.5</span>))) <span class="sc">|&gt;</span> <span class="fu">mutate</span>(<span class="at">version =</span> <span class="st">"Non-centered"</span>)</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; # A tibble: 2 × 5
+#&gt;   variable  `5%` `25%` `50%` version     
+#&gt;   &lt;chr&gt;    &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;chr&gt;       
+#&gt; 1 tau      0.886  1.77  3.29 Centered    
+#&gt; 2 tau      0.264  1.52  3.21 Non-centered</code></pre>
+</div>
+</div>
+<p>中心化写法得到的 <span class="math inline">\(\tau\)</span> 下分位数偏高：它在瓶颈处寸步难行，低估了 <span class="math inline">\(\tau\)</span> 很小的可能性。这正是第 11 章所说的“发散带来偏差”。</p>
+</section>
+<section id="neal-漏斗的非中心化" class="level3" data-number="6.4">
+<h3 data-number="6.4" class="anchored" data-anchor-id="neal-漏斗的非中心化"><span class="header-section-number">6.4</span> Neal 漏斗的非中心化</h3>
+<p>同样的改写也适用于 Neal 漏斗：</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode stan code-with-copy"><code class="sourceCode stan"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Chapter 12: Neal's funnel (non-centered parameterization)</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="co">//</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="co">//   v_raw, x_raw_k ~ Normal(0, 1)</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="co">//   v   = 3 * v_raw</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="co">//   x_k = exp(v / 2) * x_raw_k</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="kw">parameters</span> {</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span> v_raw;</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[<span class="dv">9</span>] x_raw;</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a><span class="kw">transformed parameters</span> {</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span> v = <span class="dv">3</span> * v_raw;</span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[<span class="dv">9</span>] x = exp(v / <span class="dv">2</span>) * x_raw;</span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a><span class="kw">model</span> {</span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> std_normal_lpdf(v_raw);</span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> std_normal_lpdf(x_raw);</span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>fit_neal_nc <span class="ot">&lt;-</span> <span class="fu">cmdstan_model</span>(<span class="st">"stan/ch12_neal_noncentered.stan"</span>)<span class="sc">$</span><span class="fu">sample</span>(</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">seed =</span> <span class="dv">2026</span>, <span class="at">chains =</span> <span class="dv">4</span>, <span class="at">parallel_chains =</span> <span class="dv">4</span>, <span class="at">refresh =</span> <span class="dv">0</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; Running MCMC with 4 parallel chains...
+#&gt; 
+#&gt; Chain 1 finished in 0.0 seconds.
+#&gt; Chain 2 finished in 0.0 seconds.
+#&gt; Chain 3 finished in 0.0 seconds.
+#&gt; Chain 4 finished in 0.0 seconds.
+#&gt; 
+#&gt; All 4 chains finished successfully.
+#&gt; Mean chain execution time: 0.0 seconds.
+#&gt; Total execution time: 0.2 seconds.</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu">tibble</span>(</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">quantile     =</span> <span class="fu">c</span>(<span class="st">"1%"</span>, <span class="st">"5%"</span>, <span class="st">"50%"</span>, <span class="st">"95%"</span>, <span class="st">"99%"</span>),</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">non_centered =</span> <span class="fu">quantile</span>(fit_neal_nc<span class="sc">$</span><span class="fu">draws</span>(<span class="st">"v"</span>, <span class="at">format =</span> <span class="st">"draws_matrix"</span>),</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>                          <span class="fu">c</span>(<span class="fl">0.01</span>, <span class="fl">0.05</span>, <span class="fl">0.5</span>, <span class="fl">0.95</span>, <span class="fl">0.99</span>)),</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">true_normal  =</span> <span class="fu">qnorm</span>(<span class="fu">c</span>(<span class="fl">0.01</span>, <span class="fl">0.05</span>, <span class="fl">0.5</span>, <span class="fl">0.95</span>, <span class="fl">0.99</span>), <span class="dv">0</span>, <span class="dv">3</span>)</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; # A tibble: 5 × 3
+#&gt;   quantile non_centered true_normal
+#&gt;   &lt;chr&gt;           &lt;dbl&gt;       &lt;dbl&gt;
+#&gt; 1 1%           -6.93          -6.98
+#&gt; 2 5%           -5.11          -4.93
+#&gt; 3 50%           0.00956        0   
+#&gt; 4 95%           5.00           4.93
+#&gt; 5 99%           7.11           6.98</code></pre>
+</div>
+</div>
+<p><span class="math inline">\(v\)</span> 的分位数现在与真实分布 <span class="math inline">\(\operatorname{Normal}(0, 3)\)</span> 吻合，第 11 章中被截断的左尾回来了。</p>
+</section>
+</section>
+<section id="为什么这样写" class="level2" data-number="7">
+<h2 data-number="7" class="anchored" data-anchor-id="为什么这样写"><span class="header-section-number">7</span> 为什么这样写</h2>
+<section id="为什么一行改写就能消除漏斗" class="level3" data-number="7.1">
+<h3 data-number="7.1" class="anchored" data-anchor-id="为什么一行改写就能消除漏斗"><span class="header-section-number">7.1</span> 为什么一行改写就能消除漏斗？</h3>
+<p>关键在于<strong>依赖关系被移到了哪里</strong>。</p>
+<ul>
+<li>中心化写法中，<span class="math inline">\(\theta_j\)</span> 与 <span class="math inline">\(\tau\)</span> 的依赖写在<strong>先验</strong>里：<span class="math inline">\(\theta_j \sim \operatorname{Normal}(\mu, \tau)\)</span>。<span class="math inline">\(\tau\)</span> 一变小，<span class="math inline">\(\theta_j\)</span> 的允许范围立刻收窄，这就是漏斗。</li>
+<li>非中心化写法中，<span class="math inline">\(\theta_j^{\text{raw}}\)</span> 的先验 <span class="math inline">\(\operatorname{Normal}(0, 1)\)</span> 与 <span class="math inline">\(\tau\)</span> 无关。依赖关系被移到了<strong>确定性变换</strong> <span class="math inline">\(\theta_j = \mu + \tau\theta_j^{\text{raw}}\)</span> 和似然里。</li>
+</ul>
+<p>当数据信息很弱时，似然对后验形状的影响很小，后验的几何主要由先验决定。非中心化之后，先验部分是一个各向同性的标准正态分布，采样器面对的几何因此变得规整。</p>
+</section>
+<section id="同一个模型不同的坐标系" class="level3" data-number="7.2">
+<h3 data-number="7.2" class="anchored" data-anchor-id="同一个模型不同的坐标系"><span class="header-section-number">7.2</span> 同一个模型，不同的坐标系</h3>
+<p>非中心化没有改变任何统计假设，<span class="math inline">\(\theta_j\)</span>、<span class="math inline">\(\mu\)</span>、<span class="math inline">\(\tau\)</span> 的联合后验在两种写法下<strong>完全相同</strong>。改变的只是采样器在哪个空间里移动。</p>
+<p>这和<a href="../chapters/ch05-linear-regression.html">第 5 章</a>中心化 <span class="math inline">\(x\)</span>、<a href="../chapters/ch03-types-constraints.html">第 3 章</a>约束变换的思想一脉相承：</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>章节</th>
+<th>改写</th>
+<th>消除的几何问题</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>第 3 章</td>
+<td><span class="math inline">\(\sigma = \exp(u)\)</span></td>
+<td>边界</td>
+</tr>
+<tr class="even">
+<td>第 5 章</td>
+<td><span class="math inline">\(x^c = x - \bar{x}\)</span></td>
+<td>参数之间的强相关（斜脊）</td>
+</tr>
+<tr class="odd">
+<td>本章</td>
+<td><span class="math inline">\(\theta = \mu + \tau\theta^{\text{raw}}\)</span></td>
+<td>尺度随参数变化（漏斗）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>同一个模型，换一种参数化，推断结论不变，但采样器的工作轻松了很多。</strong>这是用 Stan 建模时最重要的一种思维方式。</p>
+</section>
+<section id="什么时候中心化反而更好" class="level3" data-number="7.3">
+<h3 data-number="7.3" class="anchored" data-anchor-id="什么时候中心化反而更好"><span class="header-section-number">7.3</span> 什么时候中心化反而更好？</h3>
+<p>非中心化不是万能的。当<strong>每组数据信息很强</strong>时，情况正好反过来：似然把每个 <span class="math inline">\(\theta_j\)</span> 牢牢钉在 <span class="math inline">\(y_j\)</span> 附近。此时在非中心化坐标中，<span class="math inline">\(\theta_j^{\text{raw}} = (\theta_j - \mu)/\tau\)</span> 会随着 <span class="math inline">\(\tau\)</span> 的变化而反向伸缩，非中心化写法本身产生了一个“倒过来”的漏斗。</p>
+<p>用一份信息很强的数据来验证（标准误为 1，组间标准差为 10）：</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">2026</span>)</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>theta_strong <span class="ot">&lt;-</span> <span class="fu">rnorm</span>(J, mu_true, <span class="dv">10</span>)</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>se_strong    <span class="ot">&lt;-</span> <span class="fu">rep</span>(<span class="dv">1</span>, J)</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>y_strong     <span class="ot">&lt;-</span> <span class="fu">rnorm</span>(J, theta_strong, se_strong)</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>data_strong  <span class="ot">&lt;-</span> <span class="fu">list</span>(<span class="at">J =</span> J, <span class="at">y =</span> y_strong, <span class="at">se =</span> se_strong)</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>fit_c_strong  <span class="ot">&lt;-</span> mod_centered<span class="sc">$</span><span class="fu">sample</span>(<span class="at">data =</span> data_strong, <span class="at">seed =</span> <span class="dv">2026</span>, <span class="at">chains =</span> <span class="dv">4</span>,</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>                                     <span class="at">parallel_chains =</span> <span class="dv">4</span>, <span class="at">refresh =</span> <span class="dv">0</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; Running MCMC with 4 parallel chains...
+#&gt; 
+#&gt; Chain 1 finished in 0.0 seconds.
+#&gt; Chain 2 finished in 0.0 seconds.
+#&gt; Chain 3 finished in 0.0 seconds.
+#&gt; Chain 4 finished in 0.0 seconds.
+#&gt; 
+#&gt; All 4 chains finished successfully.
+#&gt; Mean chain execution time: 0.0 seconds.
+#&gt; Total execution time: 0.3 seconds.</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>fit_nc_strong <span class="ot">&lt;-</span> mod_noncentered<span class="sc">$</span><span class="fu">sample</span>(<span class="at">data =</span> data_strong, <span class="at">seed =</span> <span class="dv">2026</span>, <span class="at">chains =</span> <span class="dv">4</span>,</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>                                        <span class="at">parallel_chains =</span> <span class="dv">4</span>, <span class="at">refresh =</span> <span class="dv">0</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; Running MCMC with 4 parallel chains...
+#&gt; 
+#&gt; Chain 1 finished in 0.1 seconds.
+#&gt; Chain 2 finished in 0.1 seconds.
+#&gt; Chain 3 finished in 0.1 seconds.
+#&gt; Chain 4 finished in 0.1 seconds.
+#&gt; 
+#&gt; All 4 chains finished successfully.
+#&gt; Mean chain execution time: 0.1 seconds.
+#&gt; Total execution time: 0.3 seconds.</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>efficiency_row <span class="ot">&lt;-</span> <span class="cf">function</span>(fit, label) {</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tibble</span>(</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">parameterization =</span> label,</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">divergences      =</span> <span class="fu">sum</span>(fit<span class="sc">$</span><span class="fu">diagnostic_summary</span>()<span class="sc">$</span>num_divergent),</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">mu_ess_bulk      =</span> fit<span class="sc">$</span><span class="fu">summary</span>(<span class="st">"mu"</span>, <span class="st">"ess_bulk"</span>)<span class="sc">$</span>ess_bulk,</span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">tau_ess_bulk     =</span> fit<span class="sc">$</span><span class="fu">summary</span>(<span class="st">"tau"</span>, <span class="st">"ess_bulk"</span>)<span class="sc">$</span>ess_bulk,</span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">total_leapfrog   =</span> <span class="fu">sum</span>(fit<span class="sc">$</span><span class="fu">sampler_diagnostics</span>(<span class="at">format =</span> <span class="st">"df"</span>)<span class="sc">$</span>n_leapfrog__)</span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a><span class="fu">bind_rows</span>(</span>
+<span id="cb22-12"><a href="#cb22-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">efficiency_row</span>(fit_c_strong, <span class="st">"Centered"</span>),</span>
+<span id="cb22-13"><a href="#cb22-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">efficiency_row</span>(fit_nc_strong, <span class="st">"Non-centered"</span>)</span>
+<span id="cb22-14"><a href="#cb22-14" aria-hidden="true" tabindex="-1"></a>) <span class="sc">|&gt;</span></span>
+<span id="cb22-15"><a href="#cb22-15" aria-hidden="true" tabindex="-1"></a>  knitr<span class="sc">::</span><span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">0</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="tbl-informative" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-informative-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+表&nbsp;2: 数据信息很强时，两种写法的效率对比
+</figcaption>
+<div aria-describedby="tbl-informative-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output-display">
+<table class="cell caption-top table table-sm table-striped small">
+<colgroup>
+<col style="width: 24%">
+<col style="width: 17%">
+<col style="width: 17%">
+<col style="width: 18%">
+<col style="width: 21%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">parameterization</th>
+<th style="text-align: right;">divergences</th>
+<th style="text-align: right;">mu_ess_bulk</th>
+<th style="text-align: right;">tau_ess_bulk</th>
+<th style="text-align: right;">total_leapfrog</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Centered</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">5734</td>
+<td style="text-align: right;">6524</td>
+<td style="text-align: right;">27252</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Non-centered</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">659</td>
+<td style="text-align: right;">761</td>
+<td style="text-align: right;">101680</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<p>这一次，中心化写法用更少的跳步得到了多得多的有效样本。</p>
+<p>一个实用的判断规则：</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>每组数据的信息</th>
+<th>推荐写法</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>弱（每组观测少、标准误大，或组间差异小）</td>
+<td>非中心化</td>
+</tr>
+<tr class="even">
+<td>强（每组观测多、标准误远小于组间差异）</td>
+<td>中心化</td>
+</tr>
+<tr class="odd">
+<td>各组差别很大</td>
+<td>可以对不同的组分别使用两种写法</td>
+</tr>
+</tbody>
+</table>
+<p>在实际研究中，层级模型最常用于“组很多、每组数据不多”的情形，所以 Stan 模型库与本系列的<a href="../conventions.html">代码约定</a>把<strong>非中心化作为层级模型的默认写法</strong>。当诊断提示效率低下且每组数据充足时，再考虑换回中心化。</p>
+</section>
+</section>
+<section id="常见错误" class="level2" data-number="8">
+<h2 data-number="8" class="anchored" data-anchor-id="常见错误"><span class="header-section-number">8</span> 常见错误</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>错误写法</th>
+<th>后果</th>
+<th>正确写法</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>非中心化后仍写 <code>target += normal_lpdf(theta | mu, tau);</code></td>
+<td>先验被重复施加，并且缺少对 <code>theta_raw</code> 的先验</td>
+<td>只写 <code>std_normal_lpdf(theta_raw)</code></td>
+</tr>
+<tr class="even">
+<td>把 <code>theta</code> 留在 <code>parameters</code> 块，又在别处重新赋值</td>
+<td>编译错误：参数不能被赋值</td>
+<td><code>theta</code> 放进 <code>transformed parameters</code></td>
+</tr>
+<tr class="odd">
+<td>对 <code>theta_raw</code> 设置非标准正态的先验</td>
+<td>改变了模型</td>
+<td><code>theta_raw</code> 必须是标准正态</td>
+</tr>
+<tr class="even">
+<td>认为非中心化总是更好</td>
+<td>数据信息强时效率反而下降</td>
+<td>根据每组信息的强弱选择</td>
+</tr>
+<tr class="odd">
+<td>汇总时去找 <code>theta_raw</code> 作为组效应</td>
+<td>解释错误：它是标准化后的量</td>
+<td>汇总 <code>theta</code></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="练习" class="level2" data-number="9">
+<h2 data-number="9" class="anchored" data-anchor-id="练习"><span class="header-section-number">9</span> 练习</h2>
+<p><strong>练习 1　两种写法给出同一个先验</strong></p>
+<p>不用 Stan，在 R 中分别按中心化和非中心化的方式，从先验 <span class="math inline">\(\mu \sim \operatorname{Normal}(0, 5)\)</span>、<span class="math inline">\(\tau \sim \operatorname{Normal}^{+}(0, 5)\)</span> 中模拟 <span class="math inline">\(\theta_1\)</span>，比较两者的分布。</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-1-contents" aria-controls="callout-1" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">提示</span>参考答案
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-1" class="callout-1-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">2026</span>)</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>n_sim <span class="ot">&lt;-</span> <span class="fl">1e5</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>mu_sim  <span class="ot">&lt;-</span> <span class="fu">rnorm</span>(n_sim, <span class="dv">0</span>, <span class="dv">5</span>)</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>tau_sim <span class="ot">&lt;-</span> <span class="fu">abs</span>(<span class="fu">rnorm</span>(n_sim, <span class="dv">0</span>, <span class="dv">5</span>))</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>theta_centered    <span class="ot">&lt;-</span> <span class="fu">rnorm</span>(n_sim, mu_sim, tau_sim)</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>theta_noncentered <span class="ot">&lt;-</span> mu_sim <span class="sc">+</span> tau_sim <span class="sc">*</span> <span class="fu">rnorm</span>(n_sim)</span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a><span class="fu">tibble</span>(</span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">version =</span> <span class="fu">c</span>(<span class="st">"Centered"</span>, <span class="st">"Non-centered"</span>),</span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">mean    =</span> <span class="fu">c</span>(<span class="fu">mean</span>(theta_centered), <span class="fu">mean</span>(theta_noncentered)),</span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">sd      =</span> <span class="fu">c</span>(<span class="fu">sd</span>(theta_centered), <span class="fu">sd</span>(theta_noncentered)),</span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a>  <span class="at">q05     =</span> <span class="fu">c</span>(<span class="fu">quantile</span>(theta_centered, <span class="fl">0.05</span>), <span class="fu">quantile</span>(theta_noncentered, <span class="fl">0.05</span>)),</span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a>  <span class="at">q95     =</span> <span class="fu">c</span>(<span class="fu">quantile</span>(theta_centered, <span class="fl">0.95</span>), <span class="fu">quantile</span>(theta_noncentered, <span class="fl">0.95</span>))</span>
+<span id="cb23-15"><a href="#cb23-15" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; # A tibble: 2 × 5
+#&gt;   version         mean    sd   q05   q95
+#&gt;   &lt;chr&gt;          &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Centered      0.0340  7.05 -11.3  11.3
+#&gt; 2 Non-centered -0.0220  7.05 -11.3  11.2</code></pre>
+</div>
+</div>
+<p>两者在模拟误差范围内完全相同。非中心化不改变模型，只改变参数化。</p>
+</div>
+</div>
+</div>
+<p><strong>练习 2　把第 10 章的模型改写成非中心化</strong></p>
+<p>把<a href="../chapters/ch10-hierarchical.html">第 10 章</a>以学生为观测单位的学校模型改写为非中心化形式。</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-2-contents" aria-controls="callout-2" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">提示</span>参考答案
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-2" class="callout-2-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p>参考写法保存在 <code>stan/ch12_ex2_schools_nc.stan</code>：</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb25"><pre class="sourceCode stan code-with-copy"><code class="sourceCode stan"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Chapter 12, Exercise 2: the Chapter 10 school model, non-centered</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="co">//</span></span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a><span class="co">//   y_i       ~ Normal(alpha[school_i], sigma)</span></span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a><span class="co">//   alpha     = mu + tau * alpha_raw</span></span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a><span class="co">//   alpha_raw ~ Normal(0, 1)</span></span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> {</span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>&gt; N;                           <span class="co">// number of students</span></span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span>&lt;<span class="kw">lower</span>=<span class="dv">1</span>&gt; J;                           <span class="co">// number of schools</span></span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>  <span class="dt">array</span>[N] <span class="dt">int</span>&lt;<span class="kw">lower</span>=<span class="dv">1</span>, <span class="kw">upper</span>=J&gt; school;    <span class="co">// school of each student</span></span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[N] y;                              <span class="co">// math score</span></span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a><span class="kw">parameters</span> {</span>
+<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span> mu;</span>
+<span id="cb25-16"><a href="#cb25-16" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>&gt; tau;</span>
+<span id="cb25-17"><a href="#cb25-17" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[J] alpha_raw;                      <span class="co">// standardized school effects</span></span>
+<span id="cb25-18"><a href="#cb25-18" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>&gt; sigma;</span>
+<span id="cb25-19"><a href="#cb25-19" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb25-20"><a href="#cb25-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-21"><a href="#cb25-21" aria-hidden="true" tabindex="-1"></a><span class="kw">transformed parameters</span> {</span>
+<span id="cb25-22"><a href="#cb25-22" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[J] alpha = mu + tau * alpha_raw;   <span class="co">// school means</span></span>
+<span id="cb25-23"><a href="#cb25-23" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb25-24"><a href="#cb25-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-25"><a href="#cb25-25" aria-hidden="true" tabindex="-1"></a><span class="kw">model</span> {</span>
+<span id="cb25-26"><a href="#cb25-26" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> normal_lpdf(mu | <span class="dv">70</span>, <span class="dv">20</span>);</span>
+<span id="cb25-27"><a href="#cb25-27" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> exponential_lpdf(tau | <span class="fl">0.1</span>);</span>
+<span id="cb25-28"><a href="#cb25-28" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> exponential_lpdf(sigma | <span class="fl">0.1</span>);</span>
+<span id="cb25-29"><a href="#cb25-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-30"><a href="#cb25-30" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> std_normal_lpdf(alpha_raw);</span>
+<span id="cb25-31"><a href="#cb25-31" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> normal_lpdf(y | alpha[school], sigma);</span>
+<span id="cb25-32"><a href="#cb25-32" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<p>结构与本章完全相同：<code>alpha_raw</code> 是参数，<code>alpha</code> 在 <code>transformed parameters</code> 中由 <code>mu + tau * alpha_raw</code> 得到，似然中照常使用 <code>alpha[school]</code>。用第 10 章的数据生成方式检验：</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">2026</span>)</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>n_j <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">4</span>, <span class="dv">5</span>, <span class="dv">6</span>, <span class="dv">8</span>, <span class="dv">10</span>, <span class="dv">12</span>, <span class="dv">15</span>, <span class="dv">20</span>, <span class="dv">30</span>, <span class="dv">40</span>)</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>alpha_sch <span class="ot">&lt;-</span> <span class="fu">rnorm</span>(<span class="dv">12</span>, <span class="dv">70</span>, <span class="dv">10</span>)</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>schools <span class="ot">&lt;-</span> <span class="fu">tibble</span>(<span class="at">school =</span> <span class="fu">rep</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">12</span>, <span class="at">times =</span> n_j)) <span class="sc">|&gt;</span></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">score =</span> <span class="fu">rnorm</span>(<span class="fu">n</span>(), alpha_sch[school], <span class="dv">10</span>))</span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>fit_sch_nc <span class="ot">&lt;-</span> <span class="fu">cmdstan_model</span>(<span class="st">"stan/ch12_ex2_schools_nc.stan"</span>)<span class="sc">$</span><span class="fu">sample</span>(</span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> <span class="fu">list</span>(<span class="at">N =</span> <span class="fu">nrow</span>(schools), <span class="at">J =</span> <span class="dv">12</span>, <span class="at">school =</span> schools<span class="sc">$</span>school, <span class="at">y =</span> schools<span class="sc">$</span>score),</span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">seed =</span> <span class="dv">2026</span>, <span class="at">chains =</span> <span class="dv">4</span>, <span class="at">parallel_chains =</span> <span class="dv">4</span>, <span class="at">refresh =</span> <span class="dv">0</span></span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; Running MCMC with 4 parallel chains...
+#&gt; 
+#&gt; Chain 1 finished in 0.1 seconds.
+#&gt; Chain 2 finished in 0.1 seconds.
+#&gt; Chain 3 finished in 0.1 seconds.
+#&gt; Chain 4 finished in 0.1 seconds.
+#&gt; 
+#&gt; All 4 chains finished successfully.
+#&gt; Mean chain execution time: 0.1 seconds.
+#&gt; Total execution time: 0.2 seconds.</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>fit_sch_nc<span class="sc">$</span><span class="fu">summary</span>(<span class="fu">c</span>(<span class="st">"mu"</span>, <span class="st">"tau"</span>, <span class="st">"sigma"</span>))</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; # A tibble: 3 × 10
+#&gt;   variable  mean median    sd   mad    q5   q95  rhat ess_bulk ess_tail
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 mu       64.2   64.2  2.41  2.29  60.2   68.2  1.00    1191.    1655.
+#&gt; 2 tau       7.39   7.14 2.14  1.94   4.38  11.4  1.00    1306.    1957.
+#&gt; 3 sigma    10.2   10.1  0.619 0.617  9.21  11.2  1.00    4308.    2448.</code></pre>
+</div>
+</div>
+<p>结果与第 10 章的中心化写法一致。</p>
+</div>
+</div>
+</div>
+<p><strong>练习 3　<code>theta_raw</code> 的后验说明了什么？</strong></p>
+<p>查看 <code>fit_noncentered</code> 中 <code>theta_raw</code> 的后验汇总。它们的后验均值和标准差接近多少？为什么？</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-3-contents" aria-controls="callout-3" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">提示</span>参考答案
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-3" class="callout-3-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb30"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>fit_noncentered<span class="sc">$</span><span class="fu">summary</span>(<span class="st">"theta_raw"</span>, <span class="st">"mean"</span>, <span class="st">"sd"</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; # A tibble: 8 × 3
+#&gt;   variable        mean    sd
+#&gt;   &lt;chr&gt;          &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 theta_raw[1]  0.111  0.968
+#&gt; 2 theta_raw[2] -0.0316 0.948
+#&gt; 3 theta_raw[3]  0.0253 0.977
+#&gt; 4 theta_raw[4] -0.0534 0.936
+#&gt; 5 theta_raw[5]  0.0855 0.930
+#&gt; 6 theta_raw[6] -0.0535 0.925
+#&gt; 7 theta_raw[7] -0.579  0.943
+#&gt; 8 theta_raw[8]  0.302  0.991</code></pre>
+</div>
+</div>
+<p>各个 <code>theta_raw</code> 的后验标准差都接近 1，后验均值大多接近 0（观测值最极端的第 7 项研究略有偏离），几乎就是它们的先验。原因是数据信息很弱：每项研究的标准误远大于组间差异，数据几乎无法区分各项研究的真实效应。这也正是非中心化在这里有效的原因：后验的几何主要由标准正态先验决定，非常规整。</p>
+</div>
+</div>
+</div>
+<p><strong>练习 4　用 <code>offset</code> 与 <code>multiplier</code> 实现非中心化</strong></p>
+<p>Stan 提供了一种简洁的语法，可以在声明中直接指定仿射变换：<code>vector&lt;offset=mu, multiplier=tau&gt;[J] theta;</code>。用它改写模型，并与本章的写法比较。</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-4-contents" aria-controls="callout-4" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">提示</span>参考答案
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-4" class="callout-4-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p>参考写法保存在 <code>stan/ch12_ex4_offset.stan</code>：</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb32"><pre class="sourceCode stan code-with-copy"><code class="sourceCode stan"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="kw">parameters</span> {</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span> mu;</span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>&gt; tau;</span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>&lt;<span class="dt">offset</span>=mu, <span class="dt">multiplier</span>=tau&gt;[J] theta;   <span class="co">// affine transform declared here</span></span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb33"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>fit_offset <span class="ot">&lt;-</span> <span class="fu">cmdstan_model</span>(<span class="st">"stan/ch12_ex4_offset.stan"</span>)<span class="sc">$</span><span class="fu">sample</span>(</span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> stan_data, <span class="at">seed =</span> <span class="dv">2026</span>, <span class="at">chains =</span> <span class="dv">4</span>, <span class="at">parallel_chains =</span> <span class="dv">4</span>, <span class="at">refresh =</span> <span class="dv">0</span></span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; Running MCMC with 4 parallel chains...
+#&gt; 
+#&gt; Chain 1 finished in 0.0 seconds.
+#&gt; Chain 2 finished in 0.0 seconds.
+#&gt; Chain 3 finished in 0.0 seconds.
+#&gt; Chain 4 finished in 0.0 seconds.
+#&gt; 
+#&gt; All 4 chains finished successfully.
+#&gt; Mean chain execution time: 0.0 seconds.
+#&gt; Total execution time: 0.3 seconds.</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb35"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="fu">bind_rows</span>(</span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">diag_row</span>(fit_noncentered, <span class="st">"theta_raw (explicit)"</span>),</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">diag_row</span>(fit_offset, <span class="st">"offset / multiplier"</span>)</span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a>) <span class="sc">|&gt;</span></span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a>  knitr<span class="sc">::</span><span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">2</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output-display">
+<table class="caption-top table table-sm table-striped small">
+<colgroup>
+<col style="width: 30%">
+<col style="width: 17%">
+<col style="width: 13%">
+<col style="width: 19%">
+<col style="width: 19%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">parameterization</th>
+<th style="text-align: right;">divergences</th>
+<th style="text-align: right;">tau_rhat</th>
+<th style="text-align: right;">tau_ess_bulk</th>
+<th style="text-align: right;">tau_ess_tail</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">theta_raw (explicit)</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">2064.55</td>
+<td style="text-align: right;">1574.21</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">offset / multiplier</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">2213.36</td>
+<td style="text-align: right;">1498.93</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<p><code>offset</code> 和 <code>multiplier</code> 让 Stan 在内部对 <span class="math inline">\((\theta_j - \mu)/\tau\)</span> 采样，而 <code>model</code> 块的写法与中心化完全相同：<code>normal_lpdf(theta | mu, tau)</code>。这和<a href="../chapters/ch03-types-constraints.html">第 3 章</a>的 <code>&lt;lower=0&gt;</code> 是同一种机制：在声明中指定变换，Stan 自动处理雅可比项。</p>
+<p>本系列在教学中使用显式的 <code>theta_raw</code> 写法，因为它把“对什么采样、怎样变换回来”逐行写了出来；熟悉之后，<code>offset</code>/<code>multiplier</code> 是更简洁的选择。</p>
+</div>
+</div>
+</div>
+</section>
+<section id="小结" class="level2" data-number="10">
+<h2 data-number="10" class="anchored" data-anchor-id="小结"><span class="header-section-number">10</span> 小结</h2>
+<ul>
+<li>非中心化：<span class="math inline">\(\theta_j^{\text{raw}} \sim \operatorname{Normal}(0, 1)\)</span>，<span class="math inline">\(\theta_j = \mu + \tau\theta_j^{\text{raw}}\)</span>。与中心化是同一个模型，只是采样的坐标不同。</li>
+<li>它把 <span class="math inline">\(\theta_j\)</span> 与 <span class="math inline">\(\tau\)</span> 的依赖从先验移到确定性变换里，数据信息弱时消除了漏斗。</li>
+<li>数据信息强时情况相反，中心化更有效。层级模型通常“组多、每组数据少”，因此以非中心化为默认。</li>
+<li>参数化是建模的一部分：<strong>构造一个 HMC 能走的后验几何</strong>，与写出正确的模型同样重要。</li>
+</ul>
+</section>
+<section id="延伸" class="level2" data-number="11">
+<h2 data-number="11" class="anchored" data-anchor-id="延伸"><span class="header-section-number">11</span> 延伸</h2>
+<ul>
+<li>下一章进入第四单元：<a href="../chapters/ch13-continuous-latent.html">第 13 章　连续潜变量</a>。潜变量模型中的潜变量，同样常用非中心化的方式声明。</li>
+<li>当随机效应不止一个（比如随机截距和随机斜率）并且彼此相关时，非中心化需要配合 Cholesky 分解，Stan 模型库中有完整示例。</li>
+</ul>
+</section>
+<section id="参考资料" class="level2" data-number="12">
+<h2 data-number="12" class="anchored" data-anchor-id="参考资料"><span class="header-section-number">12</span> 参考资料</h2>
+<ul>
+<li>层级模型参数化的一般理论见 <span class="citation" data-cites="papaspiliopoulos2007general">Papaspiliopoulos 等 (<a href="#ref-papaspiliopoulos2007general" role="doc-biblioref">2007</a>)</span>。</li>
+<li>非中心化在 HMC 中的作用见 <span class="citation" data-cites="betancourt2015hierarchical">Betancourt &amp; Girolami (<a href="#ref-betancourt2015hierarchical" role="doc-biblioref">2015</a>)</span>。</li>
+<li>Stan User’s Guide 的 <em>Efficiency Tuning</em> 一章中 <em>Reparameterization</em> 一节讨论了 Neal 漏斗与层级模型的非中心化 <span class="citation" data-cites="stan2026users">(<a href="#ref-stan2026users" role="doc-biblioref">Stan Development Team, 2026b</a>)</span>。</li>
+<li>Stan Reference Manual 中关于 <code>offset</code> 与 <code>multiplier</code> 仿射变换的说明 <span class="citation" data-cites="stan2026reference">(<a href="#ref-stan2026reference" role="doc-biblioref">Stan Development Team, 2026a</a>)</span>。</li>
+<li><em>Statistical Rethinking</em> 第 13 章讨论了发散转移与非中心化先验 <span class="citation" data-cites="mcelreath2020rethinking">(<a href="#ref-mcelreath2020rethinking" role="doc-biblioref">McElreath, 2020</a>)</span>。</li>
+</ul>
+<div id="refs" class="references csl-bib-body hanging-indent" data-entry-spacing="0" data-line-spacing="2" role="list">
+<div id="ref-betancourt2015hierarchical" class="csl-entry" role="listitem">
+Betancourt, M., &amp; Girolami, M. (2015). <span>Hamiltonian</span> <span>Monte</span> <span>Carlo</span> for Hierarchical Models. 收入 S. K. Upadhyay, U. Singh, D. K. Dey, &amp; A. Loganathan (编), <em>Current Trends in <span>Bayesian</span> Methodology with Applications</em> (页 79～101). CRC Press.
+</div>
+<div id="ref-mcelreath2020rethinking" class="csl-entry" role="listitem">
+McElreath, R. (2020). <em>Statistical Rethinking: A Bayesian Course with Examples in <span>R</span> and <span>Stan</span></em> (2 版). CRC Press.
+</div>
+<div id="ref-papaspiliopoulos2007general" class="csl-entry" role="listitem">
+Papaspiliopoulos, O., Roberts, G. O., &amp; Sköld, M. (2007). A General Framework for the Parametrization of Hierarchical Models. <em>Statistical Science</em>, <em>22</em>(1), 59～73. <a href="https://doi.org/10.1214/088342307000000014">https://doi.org/10.1214/088342307000000014</a>
+</div>
+<div id="ref-stan2026reference" class="csl-entry" role="listitem">
+Stan Development Team. (2026a). <em>Stan Reference Manual</em> (Version 2.40). <a href="https://mc-stan.org/docs/reference-manual/">https://mc-stan.org/docs/reference-manual/</a>
+</div>
+<div id="ref-stan2026users" class="csl-entry" role="listitem">
+Stan Development Team. (2026b). <em>Stan User’s Guide</em> (Version 2.40). <a href="https://mc-stan.org/docs/stan-users-guide/">https://mc-stan.org/docs/stan-users-guide/</a>
+</div>
+</div>
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    // Ensure there is a toggle, if there isn't float one in the top right
+    if (window.document.querySelector('.quarto-color-scheme-toggle') === null) {
+      const a = window.document.createElement('a');
+      a.classList.add('top-right');
+      a.classList.add('quarto-color-scheme-toggle');
+      a.href = "";
+      a.onclick = function() { try { window.quartoToggleColorScheme(); } catch {} return false; };
+      const i = window.document.createElement("i");
+      i.classList.add('bi');
+      a.appendChild(i);
+      window.document.body.appendChild(a);
+    }
+    setColorSchemeToggle(hasAlternateSentinel())
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "已复制");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "已复制");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/perlatex\.github\.io\/from-formula-to-stan");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="../chapters/ch11-funnel.html" class="pagination-link" aria-label="第 11 章　漏斗与发散">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">第 11 章　漏斗与发散</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="../chapters/ch13-continuous-latent.html" class="pagination-link" aria-label="第 13 章　连续潜变量">
+        <span class="nav-page-text">第 13 章　连续潜变量</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      &nbsp;
+    </div>   
+    <div class="nav-footer-center">
+<p>正文 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> · 代码 <a href="https://github.com/perlatex/from-formula-to-stan/blob/main/LICENSE">MIT</a></p>
+<div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/perlatex/from-formula-to-stan/blob/main/chapters/ch12-non-centered.qmd" class="toc-action"><i class="bi bi-github"></i>查看代码</a></li><li><a href="https://github.com/perlatex/from-formula-to-stan/issues/new" class="toc-action"><i class="bi empty"></i>反馈问题</a></li></ul></div></div>
+    <div class="nav-footer-right">
+      &nbsp;
+    </div>
+  </div>
+</footer>
+
+
+
+
+</body></html>

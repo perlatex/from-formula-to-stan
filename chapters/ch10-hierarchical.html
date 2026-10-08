@@ -1,0 +1,1800 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-Hans" xml:lang="zh-Hans"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.37">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="description" content="完全合并、完全分开、部分池化，三者差在哪里？为什么小样本的组会被“拉向”总体均值？观测索引与组索引怎样对应？">
+
+<title>第 10 章　层级模型：部分池化 – 从公式到 Stan</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+/* CSS for citations */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+  margin-bottom: 0em;
+}
+.hanging-indent div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}</style>
+
+
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<link href="../chapters/ch11-funnel.html" rel="next">
+<link href="../chapters/ch09-recover-parameters.html" rel="prev">
+<script src="../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-acf12a64177840b8d86f2d4f01b2e9fb.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-dark-23bbe8b5e4efc1e257f6d59dce478b08.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-acf12a64177840b8d86f2d4f01b2e9fb.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap-da9c337e22b2253d242d90aca6293bb9.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-dark-9d1ac14fea2e996312cb70439bb7d11c.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../site_libs/bootstrap/bootstrap-da9c337e22b2253d242d90aca6293bb9.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "没有结果",
+    "search-matching-documents-text": "匹配的文档",
+    "search-copy-link-title": "复制搜索链接",
+    "search-hide-matches-text": "隐藏其它匹配结果",
+    "search-more-match-text": "更多匹配结果",
+    "search-more-matches-text": "更多匹配结果",
+    "search-clear-button-title": "清除",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "取消",
+    "search-submit-button-title": "提交",
+    "search-label": "搜索"
+  }
+}</script>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="../styles.css">
+</head>
+
+<body class="nav-sidebar docked nav-fixed quarto-light"><script id="quarto-html-before-body" type="application/javascript">
+    const toggleBodyColorMode = (bsSheetEl) => {
+      const mode = bsSheetEl.getAttribute("data-mode");
+      const bodyEl = window.document.querySelector("body");
+      if (mode === "dark") {
+        bodyEl.classList.add("quarto-dark");
+        bodyEl.classList.remove("quarto-light");
+      } else {
+        bodyEl.classList.add("quarto-light");
+        bodyEl.classList.remove("quarto-dark");
+      }
+    }
+    const toggleBodyColorPrimary = () => {
+      const bsSheetEl = window.document.querySelector("link#quarto-bootstrap:not([rel=disabled-stylesheet])");
+      if (bsSheetEl) {
+        toggleBodyColorMode(bsSheetEl);
+      }
+    }
+    const setColorSchemeToggle = (alternate) => {
+      const toggles = window.document.querySelectorAll('.quarto-color-scheme-toggle');
+      for (let i=0; i < toggles.length; i++) {
+        const toggle = toggles[i];
+        if (toggle) {
+          if (alternate) {
+            toggle.classList.add("alternate");
+          } else {
+            toggle.classList.remove("alternate");
+          }
+        }
+      }
+    };
+    const toggleColorMode = (alternate) => {
+      // Switch the stylesheets
+      const primaryStylesheets = window.document.querySelectorAll('link.quarto-color-scheme:not(.quarto-color-alternate)');
+      const alternateStylesheets = window.document.querySelectorAll('link.quarto-color-scheme.quarto-color-alternate');
+      manageTransitions('#quarto-margin-sidebar .nav-link', false);
+      if (alternate) {
+        // note: dark is layered on light, we don't disable primary!
+        enableStylesheet(alternateStylesheets);
+        for (const sheetNode of alternateStylesheets) {
+          if (sheetNode.id === "quarto-bootstrap") {
+            toggleBodyColorMode(sheetNode);
+          }
+        }
+      } else {
+        disableStylesheet(alternateStylesheets);
+        enableStylesheet(primaryStylesheets)
+        toggleBodyColorPrimary();
+      }
+      manageTransitions('#quarto-margin-sidebar .nav-link', true);
+      // Switch the toggles
+      setColorSchemeToggle(alternate)
+      // Hack to workaround the fact that safari doesn't
+      // properly recolor the scrollbar when toggling (#1455)
+      if (navigator.userAgent.indexOf('Safari') > 0 && navigator.userAgent.indexOf('Chrome') == -1) {
+        manageTransitions("body", false);
+        window.scrollTo(0, 1);
+        setTimeout(() => {
+          window.scrollTo(0, 0);
+          manageTransitions("body", true);
+        }, 40);
+      }
+    }
+    const disableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        stylesheet.rel = 'disabled-stylesheet';
+      }
+    }
+    const enableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        if(stylesheet.rel !== 'stylesheet') { // for Chrome, which will still FOUC without this check
+          stylesheet.rel = 'stylesheet';
+        }
+      }
+    }
+    const manageTransitions = (selector, allowTransitions) => {
+      const els = window.document.querySelectorAll(selector);
+      for (let i=0; i < els.length; i++) {
+        const el = els[i];
+        if (allowTransitions) {
+          el.classList.remove('notransition');
+        } else {
+          el.classList.add('notransition');
+        }
+      }
+    }
+    const isFileUrl = () => {
+      return window.location.protocol === 'file:';
+    }
+    const hasAlternateSentinel = () => {
+      let styleSentinel = getColorSchemeSentinel();
+      if (styleSentinel !== null) {
+        return styleSentinel === "alternate";
+      } else {
+        return false;
+      }
+    }
+    const setStyleSentinel = (alternate) => {
+      const value = alternate ? "alternate" : "default";
+      if (!isFileUrl()) {
+        window.localStorage.setItem("quarto-color-scheme", value);
+      } else {
+        localAlternateSentinel = value;
+      }
+    }
+    const getColorSchemeSentinel = () => {
+      if (!isFileUrl()) {
+        const storageValue = window.localStorage.getItem("quarto-color-scheme");
+        return storageValue != null ? storageValue : localAlternateSentinel;
+      } else {
+        return localAlternateSentinel;
+      }
+    }
+    const toggleGiscusIfUsed = (isAlternate, darkModeDefault) => {
+      const baseTheme = document.querySelector('#giscus-base-theme')?.value ?? 'light';
+      const alternateTheme = document.querySelector('#giscus-alt-theme')?.value ?? 'dark';
+      let newTheme = '';
+      if(authorPrefersDark) {
+        newTheme = isAlternate ? baseTheme : alternateTheme;
+      } else {
+        newTheme = isAlternate ? alternateTheme : baseTheme;
+      }
+      const changeGiscusTheme = () => {
+        // From: https://github.com/giscus/giscus/issues/336
+        const sendMessage = (message) => {
+          const iframe = document.querySelector('iframe.giscus-frame');
+          if (!iframe) return;
+          iframe.contentWindow.postMessage({ giscus: message }, 'https://giscus.app');
+        }
+        sendMessage({
+          setConfig: {
+            theme: newTheme
+          }
+        });
+      }
+      const isGiscussLoaded = window.document.querySelector('iframe.giscus-frame') !== null;
+      if (isGiscussLoaded) {
+        changeGiscusTheme();
+      }
+    };
+    const authorPrefersDark = false;
+    const darkModeDefault = authorPrefersDark;
+      document.querySelector('link#quarto-text-highlighting-styles.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+      document.querySelector('link#quarto-bootstrap.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+    let localAlternateSentinel = darkModeDefault ? 'alternate' : 'default';
+    // Dark / light mode switch
+    window.quartoToggleColorScheme = () => {
+      // Read the current dark / light value
+      let toAlternate = !hasAlternateSentinel();
+      toggleColorMode(toAlternate);
+      setStyleSentinel(toAlternate);
+      toggleGiscusIfUsed(toAlternate, darkModeDefault);
+      window.dispatchEvent(new Event('resize'));
+    };
+    // Switch to dark mode if need be
+    if (hasAlternateSentinel()) {
+      toggleColorMode(true);
+    } else {
+      toggleColorMode(false);
+    }
+  </script>
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="../index.html">
+    <span class="navbar-title">从公式到 Stan</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="搜索"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="展开或折叠导航栏" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link active" href="../index.html" aria-current="page"> 
+<span class="menu-text">首页</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../conventions.html"> 
+<span class="menu-text">代码约定</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/perlatex/from-formula-to-stan"> <i class="bi bi-github" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+  <a href="" class="quarto-color-scheme-toggle quarto-navigation-tool  px-1" onclick="window.quartoToggleColorScheme(); return false;" title="切换深色模式"><i class="bi"></i></a>
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="展开或折叠侧边栏导航" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../chapters/ch10-hierarchical.html">第三单元 · 层级</a></li><li class="breadcrumb-item"><a href="../chapters/ch10-hierarchical.html">第 10 章　层级模型：部分池化</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="展开或折叠侧边栏导航" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">从公式到 Stan</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../conventions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">代码约定</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
+ <span class="menu-text">第一单元 · 入门</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="展开或折叠此栏">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch01-why-stan.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 1 章　为什么学 Stan</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch02-skeleton.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 2 章　Stan 程序的骨架</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch03-types-constraints.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 3 章　数据类型与约束</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch04-target.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 4 章　<code>target +=</code> 与 <code>~</code></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true">
+ <span class="menu-text">第二单元 · 回归</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="展开或折叠此栏">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch05-linear-regression.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 5 章　线性回归：公式逐行变代码</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch06-run-diagnose.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 6 章　运行、诊断与后验整理</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch07-logistic.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 7 章　Logistic：只换似然</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch08-priors.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 8 章　先验与先验预测检查</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch09-recover-parameters.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 9 章　模拟数据，找回参数</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
+ <span class="menu-text">第三单元 · 层级</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="展开或折叠此栏">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch10-hierarchical.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">第 10 章　层级模型：部分池化</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch11-funnel.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 11 章　漏斗与发散</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch12-non-centered.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 12 章　非中心化</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true">
+ <span class="menu-text">第四单元 · 潜变量</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true" aria-label="展开或折叠此栏">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch13-continuous-latent.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 13 章　连续潜变量</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch14-no-discrete-parameters.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 14 章　Stan 为什么不能有离散参数</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch15-log-sum-exp.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 15 章　<code>log_sum_exp</code>：边缘化离散变量</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">本页目录</h2>
+   
+  <ul>
+  <li><a href="#本章要回答的问题" id="toc-本章要回答的问题" class="nav-link active" data-scroll-target="#本章要回答的问题"><span class="header-section-number">1</span> 本章要回答的问题</a></li>
+  <li><a href="#公式卡片" id="toc-公式卡片" class="nav-link" data-scroll-target="#公式卡片"><span class="header-section-number">2</span> 公式卡片</a></li>
+  <li><a href="#模拟数据" id="toc-模拟数据" class="nav-link" data-scroll-target="#模拟数据"><span class="header-section-number">3</span> 模拟数据</a></li>
+  <li><a href="#stan-代码" id="toc-stan-代码" class="nav-link" data-scroll-target="#stan-代码"><span class="header-section-number">4</span> Stan 代码</a>
+  <ul class="collapse">
+  <li><a href="#观测索引与组索引" id="toc-观测索引与组索引" class="nav-link" data-scroll-target="#观测索引与组索引"><span class="header-section-number">4.1</span> 观测索引与组索引</a></li>
+  <li><a href="#三个模型" id="toc-三个模型" class="nav-link" data-scroll-target="#三个模型"><span class="header-section-number">4.2</span> 三个模型</a></li>
+  </ul></li>
+  <li><a href="#r-端运行" id="toc-r-端运行" class="nav-link" data-scroll-target="#r-端运行"><span class="header-section-number">5</span> R 端运行</a></li>
+  <li><a href="#后验整理与可视化" id="toc-后验整理与可视化" class="nav-link" data-scroll-target="#后验整理与可视化"><span class="header-section-number">6</span> 后验整理与可视化</a>
+  <ul class="collapse">
+  <li><a href="#总体参数" id="toc-总体参数" class="nav-link" data-scroll-target="#总体参数"><span class="header-section-number">6.1</span> 总体参数</a></li>
+  <li><a href="#三种做法的学校均值" id="toc-三种做法的学校均值" class="nav-link" data-scroll-target="#三种做法的学校均值"><span class="header-section-number">6.2</span> 三种做法的学校均值</a></li>
+  <li><a href="#哪种做法估计得更准" id="toc-哪种做法估计得更准" class="nav-link" data-scroll-target="#哪种做法估计得更准"><span class="header-section-number">6.3</span> 哪种做法估计得更准？</a></li>
+  </ul></li>
+  <li><a href="#为什么这样写" id="toc-为什么这样写" class="nav-link" data-scroll-target="#为什么这样写"><span class="header-section-number">7</span> 为什么这样写</a>
+  <ul class="collapse">
+  <li><a href="#三种做法是同一个模型的三个极端" id="toc-三种做法是同一个模型的三个极端" class="nav-link" data-scroll-target="#三种做法是同一个模型的三个极端"><span class="header-section-number">7.1</span> 三种做法是同一个模型的三个极端</a></li>
+  <li><a href="#为什么小学校被拉得更多" id="toc-为什么小学校被拉得更多" class="nav-link" data-scroll-target="#为什么小学校被拉得更多"><span class="header-section-number">7.2</span> 为什么小学校被拉得更多？</a></li>
+  <li><a href="#为什么用索引映射而不是宽格式" id="toc-为什么用索引映射而不是宽格式" class="nav-link" data-scroll-target="#为什么用索引映射而不是宽格式"><span class="header-section-number">7.3</span> 为什么用索引映射，而不是宽格式？</a></li>
+  <li><a href="#为什么新学校的预测放在-generated-quantities" id="toc-为什么新学校的预测放在-generated-quantities" class="nav-link" data-scroll-target="#为什么新学校的预测放在-generated-quantities"><span class="header-section-number">7.4</span> 为什么新学校的预测放在 <code>generated quantities</code>？</a></li>
+  </ul></li>
+  <li><a href="#常见错误" id="toc-常见错误" class="nav-link" data-scroll-target="#常见错误"><span class="header-section-number">8</span> 常见错误</a></li>
+  <li><a href="#练习" id="toc-练习" class="nav-link" data-scroll-target="#练习"><span class="header-section-number">9</span> 练习</a></li>
+  <li><a href="#小结" id="toc-小结" class="nav-link" data-scroll-target="#小结"><span class="header-section-number">10</span> 小结</a></li>
+  <li><a href="#延伸" id="toc-延伸" class="nav-link" data-scroll-target="#延伸"><span class="header-section-number">11</span> 延伸</a></li>
+  <li><a href="#参考资料" id="toc-参考资料" class="nav-link" data-scroll-target="#参考资料"><span class="header-section-number">12</span> 参考资料</a></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/perlatex/from-formula-to-stan/blob/main/chapters/ch10-hierarchical.qmd" class="toc-action"><i class="bi bi-github"></i>查看代码</a></li><li><a href="https://github.com/perlatex/from-formula-to-stan/issues/new" class="toc-action"><i class="bi empty"></i>反馈问题</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../chapters/ch10-hierarchical.html">第三单元 · 层级</a></li><li class="breadcrumb-item"><a href="../chapters/ch10-hierarchical.html">第 10 章　层级模型：部分池化</a></li></ol></nav>
+<div class="quarto-title">
+<h1 class="title">第 10 章　层级模型：部分池化</h1>
+</div>
+
+<div>
+  <div class="description">
+    完全合并、完全分开、部分池化，三者差在哪里？为什么小样本的组会被“拉向”总体均值？观测索引与组索引怎样对应？
+  </div>
+</div>
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p>研究数据常常有分组结构：学生嵌套在学校里，试次嵌套在被试里，测量嵌套在地点里。面对分组数据，有两种朴素的做法：要么把所有组<strong>合并</strong>成一组，要么把每组<strong>分开</strong>单独分析。</p>
+<p>层级模型提供了第三条路：<strong>部分池化</strong>。它让每个组既保留自己的特点，又向其他组“借力”。本章用 Stan 把三种做法并排实现，看它们的差别从何而来。</p>
+<section id="本章要回答的问题" class="level2" data-number="1">
+<h2 data-number="1" class="anchored" data-anchor-id="本章要回答的问题"><span class="header-section-number">1</span> 本章要回答的问题</h2>
+<div class="chapter-questions">
+<ol type="1">
+<li>完全合并、完全分开、部分池化，三者差在哪里？</li>
+<li>为什么部分池化会把小样本的组“拉向”总体均值？拉多少由什么决定？</li>
+<li>观测索引 <code>i</code> 与组索引 <code>j</code> 应该怎样在 Stan 中建立映射？</li>
+</ol>
+</div>
+</section>
+<section id="公式卡片" class="level2" data-number="2">
+<h2 data-number="2" class="anchored" data-anchor-id="公式卡片"><span class="header-section-number">2</span> 公式卡片</h2>
+<div class="formula-card">
+<p><span class="card-title">三种池化方式</span></p>
+<p><strong>完全合并</strong>：所有学校共享一个均值</p>
+<p><span class="math display">\[
+y_i \sim \operatorname{Normal}(\mu,\ \sigma)
+\]</span></p>
+<p><strong>完全分开</strong>：每所学校一个均值，彼此无关</p>
+<p><span class="math display">\[
+y_i \sim \operatorname{Normal}(\alpha_{j[i]},\ \sigma), \qquad \alpha_j \sim \operatorname{Normal}(70,\ 50)
+\]</span></p>
+<p><strong>部分池化</strong>：每所学校一个均值，这些均值来自一个共同的分布，而这个分布本身也要估计</p>
+<p><span class="math display">\[
+\begin{aligned}
+y_i &amp;\sim \operatorname{Normal}(\alpha_{j[i]},\ \sigma) \\
+\alpha_j &amp;\sim \operatorname{Normal}(\mu,\ \tau) \\
+\mu &amp;\sim \operatorname{Normal}(70,\ 20), \quad \tau \sim \operatorname{Exponential}(0.1), \quad \sigma \sim \operatorname{Exponential}(0.1)
+\end{aligned}
+\]</span></p>
+</div>
+<p>记号 <span class="math inline">\(j[i]\)</span> 读作“观测 <span class="math inline">\(i\)</span> 所属的组”。比较三个模型：完全分开时，<span class="math inline">\(\alpha_j\)</span> 的先验是<strong>固定的</strong>、很宽的 <span class="math inline">\(\operatorname{Normal}(70, 50)\)</span>；部分池化时，<span class="math inline">\(\alpha_j\)</span> 的先验 <span class="math inline">\(\operatorname{Normal}(\mu, \tau)\)</span> 中的 <span class="math inline">\(\mu\)</span> 和 <span class="math inline">\(\tau\)</span> <strong>从数据中学习</strong>。层级模型的全部奥妙，就在这一点上。</p>
+</section>
+<section id="模拟数据" class="level2" data-number="3">
+<h2 data-number="3" class="anchored" data-anchor-id="模拟数据"><span class="header-section-number">3</span> 模拟数据</h2>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyverse)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(cmdstanr)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(posterior)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidybayes)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"R/theme.R"</span>)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"R/utils.R"</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>研究情境：12 所学校参加同一次数学测验。各校参加测验的学生人数差别很大，从 2 人到 40 人不等。</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">2026</span>)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>J          <span class="ot">&lt;-</span> <span class="dv">12</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>n_j        <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">4</span>, <span class="dv">5</span>, <span class="dv">6</span>, <span class="dv">8</span>, <span class="dv">10</span>, <span class="dv">12</span>, <span class="dv">15</span>, <span class="dv">20</span>, <span class="dv">30</span>, <span class="dv">40</span>)   <span class="co"># students per school</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>mu_true    <span class="ot">&lt;-</span> <span class="dv">70</span>    <span class="co"># population mean of school means</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>tau_true   <span class="ot">&lt;-</span> <span class="dv">10</span>    <span class="co"># SD between schools</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>sigma_true <span class="ot">&lt;-</span> <span class="dv">10</span>    <span class="co"># SD between students within a school</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>alpha_true <span class="ot">&lt;-</span> <span class="fu">rnorm</span>(J, mu_true, tau_true)                    <span class="co"># true school means</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>sim_data <span class="ot">&lt;-</span> <span class="fu">tibble</span>(<span class="at">school =</span> <span class="fu">rep</span>(<span class="dv">1</span><span class="sc">:</span>J, <span class="at">times =</span> n_j)) <span class="sc">|&gt;</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">score =</span> <span class="fu">rnorm</span>(<span class="fu">n</span>(), alpha_true[school], sigma_true))</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>school_summary <span class="ot">&lt;-</span> sim_data <span class="sc">|&gt;</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(school) <span class="sc">|&gt;</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">n =</span> <span class="fu">n</span>(), <span class="at">mean_score =</span> <span class="fu">mean</span>(score)) <span class="sc">|&gt;</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">alpha_true =</span> alpha_true)</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>school_summary</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; # A tibble: 12 × 4
+#&gt;    school     n mean_score alpha_true
+#&gt;     &lt;int&gt; &lt;int&gt;      &lt;dbl&gt;      &lt;dbl&gt;
+#&gt;  1      1     2       73.0       75.2
+#&gt;  2      2     3       57.3       59.2
+#&gt;  3      3     4       70.8       71.4
+#&gt;  4      4     5       72.9       69.2
+#&gt;  5      5     6       69.7       63.3
+#&gt;  6      6     8       45.9       44.8
+#&gt;  7      7    10       63.5       62.6
+#&gt;  8      8    12       55.0       59.8
+#&gt;  9      9    15       70.2       71.1
+#&gt; 10     10    20       64.9       65.3
+#&gt; 11     11    30       65.8       65.9
+#&gt; 12     12    40       64.8       62.7</code></pre>
+</div>
+</div>
+<p>数据是“长格式”：每行一名学生，<code>school</code> 列记录他属于哪所学校。</p>
+</section>
+<section id="stan-代码" class="level2" data-number="4">
+<h2 data-number="4" class="anchored" data-anchor-id="stan-代码"><span class="header-section-number">4</span> Stan 代码</h2>
+<section id="观测索引与组索引" class="level3" data-number="4.1">
+<h3 data-number="4.1" class="anchored" data-anchor-id="观测索引与组索引"><span class="header-section-number">4.1</span> 观测索引与组索引</h3>
+<p>三个模型共享同一种数据结构：</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode stan code-with-copy"><code class="sourceCode stan"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> {</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>&gt; N;                           <span class="co">// number of students</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span>&lt;<span class="kw">lower</span>=<span class="dv">1</span>&gt; J;                           <span class="co">// number of schools</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">array</span>[N] <span class="dt">int</span>&lt;<span class="kw">lower</span>=<span class="dv">1</span>, <span class="kw">upper</span>=J&gt; school;    <span class="co">// school of each student</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[N] y;                              <span class="co">// math score</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<p>这里有两套下标：</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>下标</th>
+<th>范围</th>
+<th>指什么</th>
+<th>对应的变量</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(i\)</span></td>
+<td><span class="math inline">\(1, \dots, N\)</span></td>
+<td>学生（观测）</td>
+<td><code>y[i]</code>、<code>school[i]</code></td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(j\)</span></td>
+<td><span class="math inline">\(1, \dots, J\)</span></td>
+<td>学校（组）</td>
+<td><code>alpha[j]</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>school</code> 是一个长度为 <span class="math inline">\(N\)</span> 的整数数组，它就是公式中的 <span class="math inline">\(j[i]\)</span>：把每个观测映射到它所属的组。约束 <code>&lt;lower=1, upper=J&gt;</code> 保证每个编号都是合法的组号。</p>
+</section>
+<section id="三个模型" class="level3" data-number="4.2">
+<h3 data-number="4.2" class="anchored" data-anchor-id="三个模型"><span class="header-section-number">4.2</span> 三个模型</h3>
+<p><strong>完全分开</strong>：</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode stan code-with-copy"><code class="sourceCode stan"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">model</span> {</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> normal_lpdf(alpha | <span class="dv">70</span>, <span class="dv">50</span>);</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> exponential_lpdf(sigma | <span class="fl">0.1</span>);</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> normal_lpdf(y | alpha[school], sigma);</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<p><strong>部分池化</strong>：</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode stan code-with-copy"><code class="sourceCode stan"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Chapter 10: Partial pooling (hierarchical model, centered parameterization)</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="co">//</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co">//   y_i      ~ Normal(alpha[school_i], sigma)</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="co">//   alpha[j] ~ Normal(mu, tau)          the prior itself is learned</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="co">//   mu       ~ Normal(70, 20)</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="co">//   tau      ~ Exponential(0.1)</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="co">//   sigma    ~ Exponential(0.1)</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> {</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>&gt; N;                           <span class="co">// number of students</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span>&lt;<span class="kw">lower</span>=<span class="dv">1</span>&gt; J;                           <span class="co">// number of schools</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>  <span class="dt">array</span>[N] <span class="dt">int</span>&lt;<span class="kw">lower</span>=<span class="dv">1</span>, <span class="kw">upper</span>=J&gt; school;    <span class="co">// school of each student</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[N] y;                              <span class="co">// math score</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a><span class="kw">parameters</span> {</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span> mu;                                  <span class="co">// population mean of school means</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>&gt; tau;                        <span class="co">// SD of school means</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[J] alpha;                          <span class="co">// school means</span></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>&gt; sigma;                      <span class="co">// within-school SD</span></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a><span class="kw">model</span> {</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>  <span class="co">// Hyperpriors</span></span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> normal_lpdf(mu | <span class="dv">70</span>, <span class="dv">20</span>);</span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> exponential_lpdf(tau | <span class="fl">0.1</span>);</span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> exponential_lpdf(sigma | <span class="fl">0.1</span>);</span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a>  <span class="co">// Population distribution of school means</span></span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> normal_lpdf(alpha | mu, tau);</span>
+<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a>  <span class="co">// Likelihood: student i belongs to school school[i]</span></span>
+<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> normal_lpdf(y | alpha[school], sigma);</span>
+<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a><span class="kw">generated quantities</span> {</span>
+<span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span> alpha_new = normal_rng(mu, tau);     <span class="co">// mean of a new, unobserved school</span></span>
+<span id="cb6-38"><a href="#cb6-38" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<p>部分池化模型与完全分开模型的差别只有两处：<code>parameters</code> 中多了 <code>mu</code> 和 <code>tau</code>，<code>alpha</code> 的先验从固定的 <code>normal_lpdf(alpha | 70, 50)</code> 变成了 <code>normal_lpdf(alpha | mu, tau)</code>。完全合并模型见 <code>stan/ch10_pooled.stan</code>。</p>
+<p>注意似然中的 <code>alpha[school]</code>：用一个整数数组去索引向量，得到的是一个长度为 <span class="math inline">\(N\)</span> 的向量，第 <span class="math inline">\(i\)</span> 个元素就是 <code>alpha[school[i]]</code>。这一行等价于：</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode stan code-with-copy"><code class="sourceCode stan"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span>:N) {</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> normal_lpdf(y[i] | alpha[school[i]], sigma);</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+</section>
+<section id="r-端运行" class="level2" data-number="5">
+<h2 data-number="5" class="anchored" data-anchor-id="r-端运行"><span class="header-section-number">5</span> R 端运行</h2>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>stan_data <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">N      =</span> <span class="fu">nrow</span>(sim_data),</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">J      =</span> J,</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">school =</span> sim_data<span class="sc">$</span>school,</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">y      =</span> sim_data<span class="sc">$</span>score</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>fit_pooled <span class="ot">&lt;-</span> <span class="fu">cmdstan_model</span>(<span class="st">"stan/ch10_pooled.stan"</span>)<span class="sc">$</span><span class="fu">sample</span>(</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> stan_data[<span class="fu">c</span>(<span class="st">"N"</span>, <span class="st">"y"</span>)], <span class="at">seed =</span> <span class="dv">2026</span>, <span class="at">chains =</span> <span class="dv">4</span>, <span class="at">parallel_chains =</span> <span class="dv">4</span>, <span class="at">refresh =</span> <span class="dv">0</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; Running MCMC with 4 parallel chains...
+#&gt; 
+#&gt; Chain 1 finished in 0.0 seconds.
+#&gt; Chain 2 finished in 0.0 seconds.
+#&gt; Chain 3 finished in 0.0 seconds.
+#&gt; Chain 4 finished in 0.0 seconds.
+#&gt; 
+#&gt; All 4 chains finished successfully.
+#&gt; Mean chain execution time: 0.0 seconds.
+#&gt; Total execution time: 0.3 seconds.</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>fit_unpooled <span class="ot">&lt;-</span> <span class="fu">cmdstan_model</span>(<span class="st">"stan/ch10_unpooled.stan"</span>)<span class="sc">$</span><span class="fu">sample</span>(</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> stan_data, <span class="at">seed =</span> <span class="dv">2026</span>, <span class="at">chains =</span> <span class="dv">4</span>, <span class="at">parallel_chains =</span> <span class="dv">4</span>, <span class="at">refresh =</span> <span class="dv">0</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; Running MCMC with 4 parallel chains...
+#&gt; 
+#&gt; Chain 1 finished in 0.1 seconds.
+#&gt; Chain 2 finished in 0.1 seconds.
+#&gt; Chain 3 finished in 0.1 seconds.
+#&gt; Chain 4 finished in 0.1 seconds.
+#&gt; 
+#&gt; All 4 chains finished successfully.
+#&gt; Mean chain execution time: 0.1 seconds.
+#&gt; Total execution time: 0.2 seconds.</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>fit_hier <span class="ot">&lt;-</span> <span class="fu">cmdstan_model</span>(<span class="st">"stan/ch10_hierarchical.stan"</span>)<span class="sc">$</span><span class="fu">sample</span>(</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> stan_data, <span class="at">seed =</span> <span class="dv">2026</span>, <span class="at">chains =</span> <span class="dv">4</span>, <span class="at">parallel_chains =</span> <span class="dv">4</span>, <span class="at">refresh =</span> <span class="dv">0</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; Running MCMC with 4 parallel chains...</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; Chain 1 finished in 0.1 seconds.
+#&gt; Chain 2 finished in 0.1 seconds.
+#&gt; Chain 3 finished in 0.1 seconds.
+#&gt; Chain 4 finished in 0.1 seconds.
+#&gt; 
+#&gt; All 4 chains finished successfully.
+#&gt; Mean chain execution time: 0.1 seconds.
+#&gt; Total execution time: 0.3 seconds.</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>fit_hier<span class="sc">$</span><span class="fu">diagnostic_summary</span>()</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; $num_divergent
+#&gt; [1] 0 0 1 0
+#&gt; 
+#&gt; $num_max_treedepth
+#&gt; [1] 0 0 0 0
+#&gt; 
+#&gt; $ebfmi
+#&gt; [1] 0.9543092 1.0759815 0.9690409 1.0335131</code></pre>
+</div>
+</div>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+注记
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>本章的层级模型采用最直接的“中心化”写法 <span class="math inline">\(\alpha_j \sim \operatorname{Normal}(\mu, \tau)\)</span>。在这份数据上它运行顺利；但如果你在本地重新运行时看到少量发散转移的警告，不必惊慌，那正是<a href="../chapters/ch11-funnel.html">第 11 章</a>要讨论的问题，<a href="../chapters/ch12-non-centered.html">第 12 章</a>会给出解决办法。</p>
+</div>
+</div>
+</section>
+<section id="后验整理与可视化" class="level2" data-number="6">
+<h2 data-number="6" class="anchored" data-anchor-id="后验整理与可视化"><span class="header-section-number">6</span> 后验整理与可视化</h2>
+<section id="总体参数" class="level3" data-number="6.1">
+<h3 data-number="6.1" class="anchored" data-anchor-id="总体参数"><span class="header-section-number">6.1</span> 总体参数</h3>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>fit_hier<span class="sc">$</span><span class="fu">summary</span>(<span class="fu">c</span>(<span class="st">"mu"</span>, <span class="st">"tau"</span>, <span class="st">"sigma"</span>))</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; # A tibble: 3 × 10
+#&gt;   variable  mean median    sd   mad    q5   q95  rhat ess_bulk ess_tail
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 mu       64.3   64.2  2.51  2.38  60.2   68.5  1.00    4250.    2578.
+#&gt; 2 tau       7.33   7.00 2.24  2.02   4.30  11.4  1.00    2375.    1982.
+#&gt; 3 sigma    10.2   10.2  0.612 0.613  9.26  11.3  1.00    5174.    3139.</code></pre>
+</div>
+</div>
+<p><span class="math inline">\(\tau\)</span> 是学校之间的标准差，<span class="math inline">\(\sigma\)</span> 是同一学校内学生之间的标准差。两者都被找回了。</p>
+</section>
+<section id="三种做法的学校均值" class="level3" data-number="6.2">
+<h3 data-number="6.2" class="anchored" data-anchor-id="三种做法的学校均值"><span class="header-section-number">6.2</span> 三种做法的学校均值</h3>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>pooled_mu <span class="ot">&lt;-</span> fit_pooled<span class="sc">$</span><span class="fu">summary</span>(<span class="st">"mu"</span>, <span class="st">"mean"</span>)<span class="sc">$</span>mean</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>school_estimates <span class="ot">&lt;-</span> <span class="fu">bind_rows</span>(</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>  fit_unpooled <span class="sc">|&gt;</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">spread_draws</span>(alpha[school]) <span class="sc">|&gt;</span></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">summarise</span>(<span class="at">estimate =</span> <span class="fu">mean</span>(alpha), <span class="at">.groups =</span> <span class="st">"drop"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">method =</span> <span class="st">"No pooling"</span>),</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>  fit_hier <span class="sc">|&gt;</span></span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">spread_draws</span>(alpha[school]) <span class="sc">|&gt;</span></span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">summarise</span>(<span class="at">estimate =</span> <span class="fu">mean</span>(alpha), <span class="at">.groups =</span> <span class="st">"drop"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">method =</span> <span class="st">"Partial pooling"</span>)</span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a>) <span class="sc">|&gt;</span></span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(school_summary, <span class="at">by =</span> <span class="st">"school"</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>school_estimates <span class="sc">|&gt;</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">method =</span> <span class="fu">factor</span>(method, <span class="at">levels =</span> <span class="fu">c</span>(<span class="st">"No pooling"</span>, <span class="st">"Partial pooling"</span>))) <span class="sc">|&gt;</span></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> method, <span class="at">y =</span> estimate, <span class="at">group =</span> school)) <span class="sc">+</span></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_hline</span>(<span class="at">yintercept =</span> pooled_mu, <span class="at">linetype =</span> <span class="st">"dashed"</span>, <span class="at">colour =</span> <span class="st">"grey50"</span>) <span class="sc">+</span></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="at">colour =</span> <span class="st">"grey60"</span>) <span class="sc">+</span></span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="fu">aes</span>(<span class="at">size =</span> n), <span class="at">colour =</span> f2s_colors[[<span class="st">"post"</span>]], <span class="at">alpha =</span> <span class="fl">0.8</span>) <span class="sc">+</span></span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_size_area</span>(<span class="at">max_size =</span> <span class="dv">6</span>) <span class="sc">+</span></span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="cn">NULL</span>, <span class="at">y =</span> <span class="st">"Estimated school mean"</span>, <span class="at">size =</span> <span class="st">"Students"</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output-display">
+<div id="fig-shrinkage" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-shrinkage-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ch10-hierarchical_files/figure-html/fig-shrinkage-1.png" class="img-fluid figure-img" width="672">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-shrinkage-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+图&nbsp;1: 从“完全分开”（左）到“部分池化”（右），每所学校的估计都向总体均值移动。点的大小表示学生人数：人数越少，移动越多。虚线是完全合并的估计。
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="哪种做法估计得更准" class="level3" data-number="6.3">
+<h3 data-number="6.3" class="anchored" data-anchor-id="哪种做法估计得更准"><span class="header-section-number">6.3</span> 哪种做法估计得更准？</h3>
+<p>模拟数据的好处是知道真值。先在这一份数据上比较三种做法的估计误差（均方根误差，RMSE）：</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>rmse_table <span class="ot">&lt;-</span> <span class="cf">function</span>(est) {</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>  est <span class="sc">|&gt;</span></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">size_group =</span> <span class="fu">if_else</span>(n <span class="sc">&lt;=</span> <span class="dv">6</span>, <span class="st">"Small (n &lt;= 6)"</span>, <span class="st">"Large (n &gt; 6)"</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">group_by</span>(method, size_group) <span class="sc">|&gt;</span></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">summarise</span>(<span class="at">rmse =</span> <span class="fu">sqrt</span>(<span class="fu">mean</span>((estimate <span class="sc">-</span> alpha_true)<span class="sc">^</span><span class="dv">2</span>)), <span class="at">.groups =</span> <span class="st">"drop"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">pivot_wider</span>(<span class="at">names_from =</span> size_group, <span class="at">values_from =</span> rmse) <span class="sc">|&gt;</span></span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">select</span>(method, <span class="st">`</span><span class="at">Small (n &lt;= 6)</span><span class="st">`</span>, <span class="st">`</span><span class="at">Large (n &gt; 6)</span><span class="st">`</span>)</span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a><span class="fu">bind_rows</span>(</span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>  school_summary <span class="sc">|&gt;</span> <span class="fu">transmute</span>(school, n, alpha_true, <span class="at">estimate =</span> pooled_mu, <span class="at">method =</span> <span class="st">"Complete pooling"</span>),</span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>  school_estimates <span class="sc">|&gt;</span> <span class="fu">select</span>(school, n, alpha_true, estimate, method)</span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a>) <span class="sc">|&gt;</span></span>
+<span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rmse_table</span>() <span class="sc">|&gt;</span></span>
+<span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a>  knitr<span class="sc">::</span><span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">2</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="tbl-rmse" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-rmse-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+表&nbsp;1: 本章这一份数据上，三种做法估计学校均值的 RMSE
+</figcaption>
+<div aria-describedby="tbl-rmse-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output-display">
+<table class="cell caption-top table table-sm table-striped small">
+<thead>
+<tr class="header">
+<th style="text-align: left;">method</th>
+<th style="text-align: right;">Small (n &lt;= 6)</th>
+<th style="text-align: right;">Large (n &gt; 6)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Complete pooling</td>
+<td style="text-align: right;">6.62</td>
+<td style="text-align: right;">8.06</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">No pooling</td>
+<td style="text-align: right;">3.57</td>
+<td style="text-align: right;">2.10</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Partial pooling</td>
+<td style="text-align: right;">3.92</td>
+<td style="text-align: right;">2.56</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<p>完全合并忽略了学校之间真实存在的差异，误差最大。有意思的是，在这一份数据上，部分池化的误差反而比完全分开略大：这几所小学校的样本均值恰好离各自的真值很近，向总体均值收缩反而“拉远”了。在一份只有 12 所学校的数据上，这种比较受偶然性的影响很大，<a href="../chapters/ch09-recover-parameters.html">第 9 章</a>已经说明过这一点。要看清两者的系统差别，需要重复模拟：</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>mod_unpooled <span class="ot">&lt;-</span> <span class="fu">cmdstan_model</span>(<span class="st">"stan/ch10_unpooled.stan"</span>)</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>mod_hier     <span class="ot">&lt;-</span> <span class="fu">cmdstan_model</span>(<span class="st">"stan/ch10_hierarchical.stan"</span>)</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>one_replicate <span class="ot">&lt;-</span> <span class="cf">function</span>(k) {</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">set.seed</span>(<span class="dv">3000</span> <span class="sc">+</span> k)</span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>  alpha_k <span class="ot">&lt;-</span> <span class="fu">rnorm</span>(J, mu_true, tau_true)</span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>  d <span class="ot">&lt;-</span> <span class="fu">tibble</span>(<span class="at">school =</span> <span class="fu">rep</span>(<span class="dv">1</span><span class="sc">:</span>J, <span class="at">times =</span> n_j)) <span class="sc">|&gt;</span></span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">score =</span> <span class="fu">rnorm</span>(<span class="fu">n</span>(), alpha_k[school], sigma_true))</span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>  dl <span class="ot">&lt;-</span> <span class="fu">list</span>(<span class="at">N =</span> <span class="fu">nrow</span>(d), <span class="at">J =</span> J, <span class="at">school =</span> d<span class="sc">$</span>school, <span class="at">y =</span> d<span class="sc">$</span>score)</span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a>  posterior_means <span class="ot">&lt;-</span> <span class="cf">function</span>(mod) {</span>
+<span id="cb22-12"><a href="#cb22-12" aria-hidden="true" tabindex="-1"></a>    mod<span class="sc">$</span><span class="fu">sample</span>(<span class="at">data =</span> dl, <span class="at">seed =</span> k, <span class="at">chains =</span> <span class="dv">2</span>, <span class="at">iter_warmup =</span> <span class="dv">500</span>, <span class="at">iter_sampling =</span> <span class="dv">500</span>,</span>
+<span id="cb22-13"><a href="#cb22-13" aria-hidden="true" tabindex="-1"></a>               <span class="at">refresh =</span> <span class="dv">0</span>, <span class="at">show_messages =</span> <span class="cn">FALSE</span>, <span class="at">show_exceptions =</span> <span class="cn">FALSE</span>)<span class="sc">$</span></span>
+<span id="cb22-14"><a href="#cb22-14" aria-hidden="true" tabindex="-1"></a>      <span class="fu">draws</span>(<span class="st">"alpha"</span>, <span class="at">format =</span> <span class="st">"matrix"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb22-15"><a href="#cb22-15" aria-hidden="true" tabindex="-1"></a>      <span class="fu">colMeans</span>()</span>
+<span id="cb22-16"><a href="#cb22-16" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb22-17"><a href="#cb22-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-18"><a href="#cb22-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tibble</span>(<span class="at">school =</span> <span class="dv">1</span><span class="sc">:</span>J, <span class="at">n =</span> n_j, <span class="at">alpha_true =</span> alpha_k) <span class="sc">|&gt;</span></span>
+<span id="cb22-19"><a href="#cb22-19" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb22-20"><a href="#cb22-20" aria-hidden="true" tabindex="-1"></a>      <span class="st">`</span><span class="at">No pooling</span><span class="st">`</span>      <span class="ot">=</span> <span class="fu">posterior_means</span>(mod_unpooled),</span>
+<span id="cb22-21"><a href="#cb22-21" aria-hidden="true" tabindex="-1"></a>      <span class="st">`</span><span class="at">Partial pooling</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">posterior_means</span>(mod_hier)</span>
+<span id="cb22-22"><a href="#cb22-22" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span></span>
+<span id="cb22-23"><a href="#cb22-23" aria-hidden="true" tabindex="-1"></a>    <span class="fu">pivot_longer</span>(<span class="fu">c</span>(<span class="st">`</span><span class="at">No pooling</span><span class="st">`</span>, <span class="st">`</span><span class="at">Partial pooling</span><span class="st">`</span>), <span class="at">names_to =</span> <span class="st">"method"</span>, <span class="at">values_to =</span> <span class="st">"estimate"</span>)</span>
+<span id="cb22-24"><a href="#cb22-24" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb22-25"><a href="#cb22-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-26"><a href="#cb22-26" aria-hidden="true" tabindex="-1"></a>repeated <span class="ot">&lt;-</span> <span class="fu">map</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">100</span>, one_replicate) <span class="sc">|&gt;</span> <span class="fu">list_rbind</span>()</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>repeated <span class="sc">|&gt;</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rmse_table</span>() <span class="sc">|&gt;</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>  knitr<span class="sc">::</span><span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">2</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="tbl-rmse-repeated" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-rmse-repeated-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+表&nbsp;2: 重复模拟 100 次后的平均 RMSE
+</figcaption>
+<div aria-describedby="tbl-rmse-repeated-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output-display">
+<table class="cell caption-top table table-sm table-striped small">
+<thead>
+<tr class="header">
+<th style="text-align: left;">method</th>
+<th style="text-align: right;">Small (n &lt;= 6)</th>
+<th style="text-align: right;">Large (n &gt; 6)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">No pooling</td>
+<td style="text-align: right;">5.37</td>
+<td style="text-align: right;">2.81</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Partial pooling</td>
+<td style="text-align: right;">4.96</td>
+<td style="text-align: right;">2.67</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<p>平均而言，部分池化的误差小于完全分开，而且改进主要集中在<strong>小学校</strong>：它们自己的数据最少，从其他学校“借来”的信息最有价值。大学校的数据已经足够多，两种做法相差无几。部分池化并不保证在每一份数据、每一所学校上都更好，但它在<strong>平均意义上</strong>更准确，这正是“借力”的含义。</p>
+</section>
+</section>
+<section id="为什么这样写" class="level2" data-number="7">
+<h2 data-number="7" class="anchored" data-anchor-id="为什么这样写"><span class="header-section-number">7</span> 为什么这样写</h2>
+<section id="三种做法是同一个模型的三个极端" class="level3" data-number="7.1">
+<h3 data-number="7.1" class="anchored" data-anchor-id="三种做法是同一个模型的三个极端"><span class="header-section-number">7.1</span> 三种做法是同一个模型的三个极端</h3>
+<p>把部分池化模型中的 <span class="math inline">\(\tau\)</span> 推向两个极端：</p>
+<ul>
+<li><span class="math inline">\(\tau \to 0\)</span>：所有 <span class="math inline">\(\alpha_j\)</span> 被压到同一个值 <span class="math inline">\(\mu\)</span>，模型退化为<strong>完全合并</strong>；</li>
+<li><span class="math inline">\(\tau \to \infty\)</span>：<span class="math inline">\(\alpha_j\)</span> 的先验变得无限宽，各组之间不再相互约束，模型退化为<strong>完全分开</strong>。</li>
+</ul>
+<p>完全合并和完全分开，都是对 <span class="math inline">\(\tau\)</span> 做了一个<strong>事先固定的、极端的假设</strong>。部分池化则把 <span class="math inline">\(\tau\)</span> 当作未知参数，让数据来决定各组之间到底有多相似。</p>
+</section>
+<section id="为什么小学校被拉得更多" class="level3" data-number="7.2">
+<h3 data-number="7.2" class="anchored" data-anchor-id="为什么小学校被拉得更多"><span class="header-section-number">7.2</span> 为什么小学校被拉得更多？</h3>
+<p>在 <span class="math inline">\(\mu\)</span>、<span class="math inline">\(\tau\)</span>、<span class="math inline">\(\sigma\)</span> 已知的情况下，学校 <span class="math inline">\(j\)</span> 均值的后验期望是两个量的加权平均：</p>
+<p><span class="math display">\[
+\mathbb{E}[\alpha_j \mid y] \approx \frac{\dfrac{n_j}{\sigma^2}\, \bar{y}_j + \dfrac{1}{\tau^2}\, \mu}{\dfrac{n_j}{\sigma^2} + \dfrac{1}{\tau^2}}
+= (1 - B_j)\, \bar{y}_j + B_j\, \mu,
+\qquad
+B_j = \frac{\sigma^2 / n_j}{\sigma^2 / n_j + \tau^2}
+\]</span></p>
+<p>权重就是各自的<strong>精度</strong>（方差的倒数）：</p>
+<ul>
+<li>学校自己的样本均值 <span class="math inline">\(\bar{y}_j\)</span>，精度是 <span class="math inline">\(n_j / \sigma^2\)</span>，学生越多越精确；</li>
+<li>总体均值 <span class="math inline">\(\mu\)</span>，作为“先验”的精度是 <span class="math inline">\(1/\tau^2\)</span>。</li>
+</ul>
+<p><span class="math inline">\(B_j\)</span> 叫作<strong>收缩因子</strong>。学生越少，<span class="math inline">\(\sigma^2/n_j\)</span> 越大，<span class="math inline">\(B_j\)</span> 越接近 1，估计越靠近总体均值。用后验均值把这个公式算一遍，与实际的收缩比较：</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>post_means <span class="ot">&lt;-</span> fit_hier<span class="sc">$</span><span class="fu">summary</span>(<span class="fu">c</span>(<span class="st">"mu"</span>, <span class="st">"tau"</span>, <span class="st">"sigma"</span>), <span class="st">"mean"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">deframe</span>()</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>shrink_data <span class="ot">&lt;-</span> school_estimates <span class="sc">|&gt;</span></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(method <span class="sc">==</span> <span class="st">"Partial pooling"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">observed_shrinkage =</span> (mean_score <span class="sc">-</span> estimate) <span class="sc">/</span> (mean_score <span class="sc">-</span> post_means[[<span class="st">"mu"</span>]]))</span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(shrink_data, <span class="fu">aes</span>(<span class="at">x =</span> n, <span class="at">y =</span> observed_shrinkage)) <span class="sc">+</span></span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">stat_function</span>(</span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">fun =</span> \(n) (post_means[[<span class="st">"sigma"</span>]]<span class="sc">^</span><span class="dv">2</span> <span class="sc">/</span> n) <span class="sc">/</span></span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a>      (post_means[[<span class="st">"sigma"</span>]]<span class="sc">^</span><span class="dv">2</span> <span class="sc">/</span> n <span class="sc">+</span> post_means[[<span class="st">"tau"</span>]]<span class="sc">^</span><span class="dv">2</span>),</span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">colour =</span> f2s_colors[[<span class="st">"truth"</span>]], <span class="at">linewidth =</span> <span class="fl">0.8</span></span>
+<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb24-14"><a href="#cb24-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">colour =</span> f2s_colors[[<span class="st">"post"</span>]], <span class="at">size =</span> <span class="fl">2.5</span>) <span class="sc">+</span></span>
+<span id="cb24-15"><a href="#cb24-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Students in the school"</span>, <span class="at">y =</span> <span class="st">"Shrinkage toward mu"</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output-display">
+<div id="fig-shrink-factor" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-shrink-factor-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ch10-hierarchical_files/figure-html/fig-shrink-factor-1.png" class="img-fluid figure-img" width="672">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-shrink-factor-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+图&nbsp;2: 每所学校的实际收缩比例（点）与公式给出的收缩因子 B_j（曲线）。学生越少，收缩越多。
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>点与曲线并不完全重合，因为公式把 <span class="math inline">\(\mu\)</span>、<span class="math inline">\(\tau\)</span>、<span class="math inline">\(\sigma\)</span> 当作已知，而模型中它们本身也有不确定性；但趋势完全一致。（某所学校的样本均值恰好接近 <span class="math inline">\(\mu\)</span> 时，这个比例的分母很小，计算出的数值会不稳定。）</p>
+<p>这个公式揭示了部分池化的本质：<strong>它不是一种调参技巧，而是“各组相似但不相同”这一假设在概率上的自然结果。</strong></p>
+</section>
+<section id="为什么用索引映射而不是宽格式" class="level3" data-number="7.3">
+<h3 data-number="7.3" class="anchored" data-anchor-id="为什么用索引映射而不是宽格式"><span class="header-section-number">7.3</span> 为什么用索引映射，而不是宽格式？</h3>
+<p>另一种组织数据的方式是“宽格式”：每所学校一列。但各校人数不同，宽格式需要填充缺失值，Stan 处理起来很麻烦。长格式加索引映射有三个好处：</p>
+<ul>
+<li>每组人数可以不同，甚至可以有只有一个观测的组；</li>
+<li>数据结构与 tidyverse 的整洁数据一致，R 端准备数据很自然；</li>
+<li>推广到多层（学生 → 班级 → 学校）或交叉结构（被试 × 条目）时，只需要增加更多的索引数组。</li>
+</ul>
+<p>关键是严格区分两套下标：<strong>与观测一一对应的量用 <span class="math inline">\(i\)</span> 索引（长度 <span class="math inline">\(N\)</span>），与组一一对应的量用 <span class="math inline">\(j\)</span> 索引（长度 <span class="math inline">\(J\)</span>），二者之间只通过 <code>school[i]</code> 这样的映射数组连接。</strong></p>
+</section>
+<section id="为什么新学校的预测放在-generated-quantities" class="level3" data-number="7.4">
+<h3 data-number="7.4" class="anchored" data-anchor-id="为什么新学校的预测放在-generated-quantities"><span class="header-section-number">7.4</span> 为什么新学校的预测放在 <code>generated quantities</code>？</h3>
+<p><code>alpha_new = normal_rng(mu, tau)</code> 回答的问题是：一所<strong>没有参加测验</strong>的新学校，均值可能是多少？它不参与推断，只是用 <span class="math inline">\(\mu\)</span>、<span class="math inline">\(\tau\)</span> 的后验做预测，所以放在 <code>generated quantities</code>。这个量只有在层级模型中才有意义：完全分开模型对新学校一无所知，完全合并模型则认为新学校与总体完全相同。</p>
+</section>
+</section>
+<section id="常见错误" class="level2" data-number="8">
+<h2 data-number="8" class="anchored" data-anchor-id="常见错误"><span class="header-section-number">8</span> 常见错误</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>错误写法</th>
+<th>后果</th>
+<th>正确写法</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>组编号从 0 开始</td>
+<td>运行时报错：违反 <code>&lt;lower=1&gt;</code></td>
+<td>R 端用 <code>as.integer(factor(...))</code> 生成 1 到 <span class="math inline">\(J\)</span> 的编号</td>
+</tr>
+<tr class="even">
+<td>组编号不连续（如 1, 2, 5, 7）</td>
+<td>多出没有数据的组，或越界</td>
+<td>重新编号为连续整数</td>
+</tr>
+<tr class="odd">
+<td>混淆下标：<code>alpha[i]</code></td>
+<td>用观测下标索引组参数，越界或含义错误</td>
+<td><code>alpha[school[i]]</code> 或 <code>alpha[school]</code></td>
+</tr>
+<tr class="even">
+<td><code>real tau;</code> 漏写约束</td>
+<td>标准差可能取负值</td>
+<td><code>real&lt;lower=0&gt; tau;</code></td>
+</tr>
+<tr class="odd">
+<td>认为部分池化“把数据改了”</td>
+<td>误解：观测数据没有变，变的是对各组均值的估计</td>
+<td>理解为“借用其他组的信息”</td>
+</tr>
+<tr class="even">
+<td>组数很少（如 3 组）时随意设置 <span class="math inline">\(\tau\)</span> 的先验</td>
+<td><span class="math inline">\(\tau\)</span> 的后验强烈依赖先验</td>
+<td>认真选择 <span class="math inline">\(\tau\)</span> 的先验，并做敏感性分析</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="练习" class="level2" data-number="9">
+<h2 data-number="9" class="anchored" data-anchor-id="练习"><span class="header-section-number">9</span> 练习</h2>
+<p><strong>练习 1　预测一所新学校</strong></p>
+<p>用 <code>alpha_new</code> 的后验，给出一所新学校平均分的 90% 预测区间。它为什么比 <span class="math inline">\(\mu\)</span> 的区间宽得多？</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-2-contents" aria-controls="callout-2" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">提示</span>参考答案
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-2" class="callout-2-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>fit_hier<span class="sc">$</span><span class="fu">summary</span>(<span class="fu">c</span>(<span class="st">"mu"</span>, <span class="st">"alpha_new"</span>), <span class="st">"mean"</span>, <span class="sc">~</span> <span class="fu">quantile</span>(.x, <span class="fu">c</span>(<span class="fl">0.05</span>, <span class="fl">0.95</span>)))</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; # A tibble: 2 × 4
+#&gt;   variable   mean  `5%` `95%`
+#&gt;   &lt;chr&gt;     &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 mu         64.3  60.2  68.5
+#&gt; 2 alpha_new  64.1  51.0  77.3</code></pre>
+</div>
+</div>
+<p><span class="math inline">\(\mu\)</span> 的区间只反映“总体均值估计得有多准”；<code>alpha_new</code> 的区间还要加上“学校之间本来就有差异”这一层不确定性，其宽度主要由 <span class="math inline">\(\tau\)</span> 决定。前者回答“学校的平均水平是多少”，后者回答“下一所学校会是多少”。</p>
+</div>
+</div>
+</div>
+<p><strong>练习 2　把 <span class="math inline">\(\tau\)</span> 固定下来</strong></p>
+<p>修改部分池化模型，把 <span class="math inline">\(\tau\)</span> 作为数据传入并固定为 0.1 和 1000，分别拟合。结果分别接近哪种做法？</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-3-contents" aria-controls="callout-3" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">提示</span>参考答案
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-3" class="callout-3-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p>在 <code>data</code> 块中加入 <code>real&lt;lower=0&gt; tau;</code>，并从 <code>parameters</code> 块和先验中删去 <code>tau</code>。</p>
+<ul>
+<li><span class="math inline">\(\tau = 0.1\)</span>：各校均值几乎被压到同一个值，结果接近<strong>完全合并</strong>；</li>
+<li><span class="math inline">\(\tau = 1000\)</span>：先验对各校均值几乎没有约束，结果接近<strong>完全分开</strong>。</li>
+</ul>
+<p>这验证了“三种做法是同一个模型的三个极端”。部分池化把 <span class="math inline">\(\tau\)</span> 交给数据决定，本章的估计值约为 7.3，介于两个极端之间。</p>
+</div>
+</div>
+</div>
+<p><strong>练习 3　加入学生层面的预测变量</strong></p>
+<p>假设每名学生还有每周学习时长 <code>hours</code>。写出“学校截距不同、学习时长斜率相同”的模型。</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-4-contents" aria-controls="callout-4" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">提示</span>参考答案
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-4" class="callout-4-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p>公式：</p>
+<p><span class="math display">\[
+y_i \sim \operatorname{Normal}(\alpha_{j[i]} + \beta\, x_i,\ \sigma), \qquad \alpha_j \sim \operatorname{Normal}(\mu, \tau)
+\]</span></p>
+<p>Stan 程序中，<code>data</code> 块加 <code>vector[N] x;</code>，<code>parameters</code> 块加 <code>real beta;</code>，似然改为：</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb27"><pre class="sourceCode stan code-with-copy"><code class="sourceCode stan"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="kw">target +=</span> normal_lpdf(y | alpha[school] + beta * x, sigma);</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<p>再给 <code>beta</code> 加一行先验即可。如果希望斜率也因学校而异，就让 <code>beta</code> 也变成长度为 <span class="math inline">\(J\)</span> 的向量并有自己的层级分布；此时截距与斜率之间的相关性通常也需要建模，会用到<a href="../chapters/ch03-types-constraints.html">第 3 章</a>提到的 <code>cholesky_factor_corr</code> 类型。</p>
+</div>
+</div>
+</div>
+<p><strong>练习 4　组越多，<span class="math inline">\(\tau\)</span> 估计越准</strong></p>
+<p>保持每校人数分布不变，把学校数从 12 增加到 48（每种人数各 4 所学校），<span class="math inline">\(\tau\)</span> 的后验会怎样变化？</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-5-contents" aria-controls="callout-5" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">提示</span>参考答案
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-5" class="callout-5-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">2027</span>)</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>J_big <span class="ot">&lt;-</span> <span class="dv">48</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>n_big <span class="ot">&lt;-</span> <span class="fu">rep</span>(n_j, <span class="at">times =</span> <span class="dv">4</span>)</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>alpha_big <span class="ot">&lt;-</span> <span class="fu">rnorm</span>(J_big, mu_true, tau_true)</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>big_data <span class="ot">&lt;-</span> <span class="fu">tibble</span>(<span class="at">school =</span> <span class="fu">rep</span>(<span class="dv">1</span><span class="sc">:</span>J_big, <span class="at">times =</span> n_big)) <span class="sc">|&gt;</span></span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">score =</span> <span class="fu">rnorm</span>(<span class="fu">n</span>(), alpha_big[school], sigma_true))</span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>fit_big <span class="ot">&lt;-</span> <span class="fu">cmdstan_model</span>(<span class="st">"stan/ch10_hierarchical.stan"</span>)<span class="sc">$</span><span class="fu">sample</span>(</span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> <span class="fu">list</span>(<span class="at">N =</span> <span class="fu">nrow</span>(big_data), <span class="at">J =</span> J_big, <span class="at">school =</span> big_data<span class="sc">$</span>school, <span class="at">y =</span> big_data<span class="sc">$</span>score),</span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">seed =</span> <span class="dv">2026</span>, <span class="at">chains =</span> <span class="dv">4</span>, <span class="at">parallel_chains =</span> <span class="dv">4</span>, <span class="at">refresh =</span> <span class="dv">0</span></span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; Running MCMC with 4 parallel chains...</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; Chain 1 finished in 0.3 seconds.
+#&gt; Chain 2 finished in 0.3 seconds.
+#&gt; Chain 3 finished in 0.3 seconds.
+#&gt; Chain 4 finished in 0.3 seconds.
+#&gt; 
+#&gt; All 4 chains finished successfully.
+#&gt; Mean chain execution time: 0.3 seconds.
+#&gt; Total execution time: 0.5 seconds.</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="fu">bind_rows</span>(</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>  fit_hier<span class="sc">$</span><span class="fu">summary</span>(<span class="st">"tau"</span>, <span class="st">"mean"</span>, <span class="st">"sd"</span>, <span class="sc">~</span> <span class="fu">quantile</span>(.x, <span class="fu">c</span>(<span class="fl">0.05</span>, <span class="fl">0.95</span>))) <span class="sc">|&gt;</span> <span class="fu">mutate</span>(<span class="at">J =</span> <span class="dv">12</span>),</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>  fit_big<span class="sc">$</span><span class="fu">summary</span>(<span class="st">"tau"</span>, <span class="st">"mean"</span>, <span class="st">"sd"</span>, <span class="sc">~</span> <span class="fu">quantile</span>(.x, <span class="fu">c</span>(<span class="fl">0.05</span>, <span class="fl">0.95</span>))) <span class="sc">|&gt;</span> <span class="fu">mutate</span>(<span class="at">J =</span> <span class="dv">48</span>)</span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; # A tibble: 2 × 6
+#&gt;   variable  mean    sd  `5%` `95%`     J
+#&gt;   &lt;chr&gt;    &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 tau       7.33  2.24  4.30  11.4    12
+#&gt; 2 tau      10.5   1.21  8.71  12.5    48</code></pre>
+</div>
+</div>
+<p><span class="math inline">\(\tau\)</span> 描述的是<strong>学校之间</strong>的差异，提供信息的是学校的个数，而不是学生的总数。学校从 12 所增加到 48 所，<span class="math inline">\(\tau\)</span> 的后验明显变窄。这也提醒我们：组数很少时，组间标准差很难估计准确，先验的作用就更大。</p>
+</div>
+</div>
+</div>
+</section>
+<section id="小结" class="level2" data-number="10">
+<h2 data-number="10" class="anchored" data-anchor-id="小结"><span class="header-section-number">10</span> 小结</h2>
+<ul>
+<li>完全合并假设 <span class="math inline">\(\tau = 0\)</span>，完全分开假设 <span class="math inline">\(\tau = \infty\)</span>，部分池化让数据决定 <span class="math inline">\(\tau\)</span>。</li>
+<li>部分池化的估计是“组内均值”与“总体均值”的精度加权平均：组越小，越向总体均值收缩。</li>
+<li>数据用长格式，严格区分观测下标 <span class="math inline">\(i\)</span> 与组下标 <span class="math inline">\(j\)</span>，用映射数组 <code>school[i]</code> 连接两者；Stan 中 <code>alpha[school]</code> 一行完成所有观测的索引。</li>
+<li>层级模型能对“新的组”做预测，这是另外两种做法做不到的。</li>
+</ul>
+</section>
+<section id="延伸" class="level2" data-number="11">
+<h2 data-number="11" class="anchored" data-anchor-id="延伸"><span class="header-section-number">11</span> 延伸</h2>
+<ul>
+<li>下一章：<a href="../chapters/ch11-funnel.html">第 11 章　漏斗与发散</a>。当组内数据很少、组间差异很小时，本章的写法会让采样器陷入困境。</li>
+<li>层级模型是 Stan 模型库中许多真实案例的基础，那里有更复杂的多层与交叉结构。</li>
+</ul>
+</section>
+<section id="参考资料" class="level2" data-number="12">
+<h2 data-number="12" class="anchored" data-anchor-id="参考资料"><span class="header-section-number">12</span> 参考资料</h2>
+<ul>
+<li><em>Bayesian Data Analysis</em> 第 5 章是层级模型的经典讲解，包括收缩的推导与“八所学校”的例子 <span class="citation" data-cites="gelman2013bda">(<a href="#ref-gelman2013bda" role="doc-biblioref">Gelman 等, 2013</a>)</span>。</li>
+<li><em>Statistical Rethinking</em> 第 13 章用“有记忆的模型”讲解部分池化，并以模拟比较了三种做法的估计误差 <span class="citation" data-cites="mcelreath2020rethinking">(<a href="#ref-mcelreath2020rethinking" role="doc-biblioref">McElreath, 2020</a>)</span>。</li>
+<li>Stan User’s Guide 的 <em>Regression Models</em> 一章中关于层级回归（hierarchical regression）的部分 <span class="citation" data-cites="stan2026users">(<a href="#ref-stan2026users" role="doc-biblioref">Stan Development Team, 2026</a>)</span>。</li>
+<li>层级模型中组间标准差的先验选择见 <span class="citation" data-cites="gelman2006prior">Gelman (<a href="#ref-gelman2006prior" role="doc-biblioref">2006</a>)</span>。</li>
+</ul>
+<div id="refs" class="references csl-bib-body hanging-indent" data-entry-spacing="0" data-line-spacing="2" role="list">
+<div id="ref-gelman2006prior" class="csl-entry" role="listitem">
+Gelman, A. (2006). Prior Distributions for Variance Parameters in Hierarchical Models. <em>Bayesian Analysis</em>, <em>1</em>(3), 515～534. <a href="https://doi.org/10.1214/06-BA117A">https://doi.org/10.1214/06-BA117A</a>
+</div>
+<div id="ref-gelman2013bda" class="csl-entry" role="listitem">
+Gelman, A., Carlin, J. B., Stern, H. S., Dunson, D. B., Vehtari, A., &amp; Rubin, D. B. (2013). <em>Bayesian Data Analysis</em> (3 版). CRC Press.
+</div>
+<div id="ref-mcelreath2020rethinking" class="csl-entry" role="listitem">
+McElreath, R. (2020). <em>Statistical Rethinking: A Bayesian Course with Examples in <span>R</span> and <span>Stan</span></em> (2 版). CRC Press.
+</div>
+<div id="ref-stan2026users" class="csl-entry" role="listitem">
+Stan Development Team. (2026). <em>Stan User’s Guide</em> (Version 2.40). <a href="https://mc-stan.org/docs/stan-users-guide/">https://mc-stan.org/docs/stan-users-guide/</a>
+</div>
+</div>
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    // Ensure there is a toggle, if there isn't float one in the top right
+    if (window.document.querySelector('.quarto-color-scheme-toggle') === null) {
+      const a = window.document.createElement('a');
+      a.classList.add('top-right');
+      a.classList.add('quarto-color-scheme-toggle');
+      a.href = "";
+      a.onclick = function() { try { window.quartoToggleColorScheme(); } catch {} return false; };
+      const i = window.document.createElement("i");
+      i.classList.add('bi');
+      a.appendChild(i);
+      window.document.body.appendChild(a);
+    }
+    setColorSchemeToggle(hasAlternateSentinel())
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "已复制");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "已复制");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/perlatex\.github\.io\/from-formula-to-stan");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="../chapters/ch09-recover-parameters.html" class="pagination-link" aria-label="第 9 章　模拟数据，找回参数">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">第 9 章　模拟数据，找回参数</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="../chapters/ch11-funnel.html" class="pagination-link" aria-label="第 11 章　漏斗与发散">
+        <span class="nav-page-text">第 11 章　漏斗与发散</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      &nbsp;
+    </div>   
+    <div class="nav-footer-center">
+<p>正文 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> · 代码 <a href="https://github.com/perlatex/from-formula-to-stan/blob/main/LICENSE">MIT</a></p>
+<div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/perlatex/from-formula-to-stan/blob/main/chapters/ch10-hierarchical.qmd" class="toc-action"><i class="bi bi-github"></i>查看代码</a></li><li><a href="https://github.com/perlatex/from-formula-to-stan/issues/new" class="toc-action"><i class="bi empty"></i>反馈问题</a></li></ul></div></div>
+    <div class="nav-footer-right">
+      &nbsp;
+    </div>
+  </div>
+</footer>
+
+
+
+
+</body></html>

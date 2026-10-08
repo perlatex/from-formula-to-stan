@@ -1,0 +1,1817 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-Hans" xml:lang="zh-Hans"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.37">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="description" content="灵活性与透明性：当现成函数“差一点点”时，Stan 让你写出真正想要的模型，并让每一个假设都看得见。">
+
+<title>第 1 章　为什么学 Stan – 从公式到 Stan</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+/* CSS for citations */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+  margin-bottom: 0em;
+}
+.hanging-indent div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}</style>
+
+
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<link href="../chapters/ch02-skeleton.html" rel="next">
+<link href="../conventions.html" rel="prev">
+<script src="../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-acf12a64177840b8d86f2d4f01b2e9fb.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-dark-23bbe8b5e4efc1e257f6d59dce478b08.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-acf12a64177840b8d86f2d4f01b2e9fb.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap-da9c337e22b2253d242d90aca6293bb9.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-dark-9d1ac14fea2e996312cb70439bb7d11c.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../site_libs/bootstrap/bootstrap-da9c337e22b2253d242d90aca6293bb9.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "没有结果",
+    "search-matching-documents-text": "匹配的文档",
+    "search-copy-link-title": "复制搜索链接",
+    "search-hide-matches-text": "隐藏其它匹配结果",
+    "search-more-match-text": "更多匹配结果",
+    "search-more-matches-text": "更多匹配结果",
+    "search-clear-button-title": "清除",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "取消",
+    "search-submit-button-title": "提交",
+    "search-label": "搜索"
+  }
+}</script>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="../styles.css">
+</head>
+
+<body class="nav-sidebar docked nav-fixed quarto-light"><script id="quarto-html-before-body" type="application/javascript">
+    const toggleBodyColorMode = (bsSheetEl) => {
+      const mode = bsSheetEl.getAttribute("data-mode");
+      const bodyEl = window.document.querySelector("body");
+      if (mode === "dark") {
+        bodyEl.classList.add("quarto-dark");
+        bodyEl.classList.remove("quarto-light");
+      } else {
+        bodyEl.classList.add("quarto-light");
+        bodyEl.classList.remove("quarto-dark");
+      }
+    }
+    const toggleBodyColorPrimary = () => {
+      const bsSheetEl = window.document.querySelector("link#quarto-bootstrap:not([rel=disabled-stylesheet])");
+      if (bsSheetEl) {
+        toggleBodyColorMode(bsSheetEl);
+      }
+    }
+    const setColorSchemeToggle = (alternate) => {
+      const toggles = window.document.querySelectorAll('.quarto-color-scheme-toggle');
+      for (let i=0; i < toggles.length; i++) {
+        const toggle = toggles[i];
+        if (toggle) {
+          if (alternate) {
+            toggle.classList.add("alternate");
+          } else {
+            toggle.classList.remove("alternate");
+          }
+        }
+      }
+    };
+    const toggleColorMode = (alternate) => {
+      // Switch the stylesheets
+      const primaryStylesheets = window.document.querySelectorAll('link.quarto-color-scheme:not(.quarto-color-alternate)');
+      const alternateStylesheets = window.document.querySelectorAll('link.quarto-color-scheme.quarto-color-alternate');
+      manageTransitions('#quarto-margin-sidebar .nav-link', false);
+      if (alternate) {
+        // note: dark is layered on light, we don't disable primary!
+        enableStylesheet(alternateStylesheets);
+        for (const sheetNode of alternateStylesheets) {
+          if (sheetNode.id === "quarto-bootstrap") {
+            toggleBodyColorMode(sheetNode);
+          }
+        }
+      } else {
+        disableStylesheet(alternateStylesheets);
+        enableStylesheet(primaryStylesheets)
+        toggleBodyColorPrimary();
+      }
+      manageTransitions('#quarto-margin-sidebar .nav-link', true);
+      // Switch the toggles
+      setColorSchemeToggle(alternate)
+      // Hack to workaround the fact that safari doesn't
+      // properly recolor the scrollbar when toggling (#1455)
+      if (navigator.userAgent.indexOf('Safari') > 0 && navigator.userAgent.indexOf('Chrome') == -1) {
+        manageTransitions("body", false);
+        window.scrollTo(0, 1);
+        setTimeout(() => {
+          window.scrollTo(0, 0);
+          manageTransitions("body", true);
+        }, 40);
+      }
+    }
+    const disableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        stylesheet.rel = 'disabled-stylesheet';
+      }
+    }
+    const enableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        if(stylesheet.rel !== 'stylesheet') { // for Chrome, which will still FOUC without this check
+          stylesheet.rel = 'stylesheet';
+        }
+      }
+    }
+    const manageTransitions = (selector, allowTransitions) => {
+      const els = window.document.querySelectorAll(selector);
+      for (let i=0; i < els.length; i++) {
+        const el = els[i];
+        if (allowTransitions) {
+          el.classList.remove('notransition');
+        } else {
+          el.classList.add('notransition');
+        }
+      }
+    }
+    const isFileUrl = () => {
+      return window.location.protocol === 'file:';
+    }
+    const hasAlternateSentinel = () => {
+      let styleSentinel = getColorSchemeSentinel();
+      if (styleSentinel !== null) {
+        return styleSentinel === "alternate";
+      } else {
+        return false;
+      }
+    }
+    const setStyleSentinel = (alternate) => {
+      const value = alternate ? "alternate" : "default";
+      if (!isFileUrl()) {
+        window.localStorage.setItem("quarto-color-scheme", value);
+      } else {
+        localAlternateSentinel = value;
+      }
+    }
+    const getColorSchemeSentinel = () => {
+      if (!isFileUrl()) {
+        const storageValue = window.localStorage.getItem("quarto-color-scheme");
+        return storageValue != null ? storageValue : localAlternateSentinel;
+      } else {
+        return localAlternateSentinel;
+      }
+    }
+    const toggleGiscusIfUsed = (isAlternate, darkModeDefault) => {
+      const baseTheme = document.querySelector('#giscus-base-theme')?.value ?? 'light';
+      const alternateTheme = document.querySelector('#giscus-alt-theme')?.value ?? 'dark';
+      let newTheme = '';
+      if(authorPrefersDark) {
+        newTheme = isAlternate ? baseTheme : alternateTheme;
+      } else {
+        newTheme = isAlternate ? alternateTheme : baseTheme;
+      }
+      const changeGiscusTheme = () => {
+        // From: https://github.com/giscus/giscus/issues/336
+        const sendMessage = (message) => {
+          const iframe = document.querySelector('iframe.giscus-frame');
+          if (!iframe) return;
+          iframe.contentWindow.postMessage({ giscus: message }, 'https://giscus.app');
+        }
+        sendMessage({
+          setConfig: {
+            theme: newTheme
+          }
+        });
+      }
+      const isGiscussLoaded = window.document.querySelector('iframe.giscus-frame') !== null;
+      if (isGiscussLoaded) {
+        changeGiscusTheme();
+      }
+    };
+    const authorPrefersDark = false;
+    const darkModeDefault = authorPrefersDark;
+      document.querySelector('link#quarto-text-highlighting-styles.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+      document.querySelector('link#quarto-bootstrap.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+    let localAlternateSentinel = darkModeDefault ? 'alternate' : 'default';
+    // Dark / light mode switch
+    window.quartoToggleColorScheme = () => {
+      // Read the current dark / light value
+      let toAlternate = !hasAlternateSentinel();
+      toggleColorMode(toAlternate);
+      setStyleSentinel(toAlternate);
+      toggleGiscusIfUsed(toAlternate, darkModeDefault);
+      window.dispatchEvent(new Event('resize'));
+    };
+    // Switch to dark mode if need be
+    if (hasAlternateSentinel()) {
+      toggleColorMode(true);
+    } else {
+      toggleColorMode(false);
+    }
+  </script>
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="../index.html">
+    <span class="navbar-title">从公式到 Stan</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="搜索"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="展开或折叠导航栏" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link active" href="../index.html" aria-current="page"> 
+<span class="menu-text">首页</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../conventions.html"> 
+<span class="menu-text">代码约定</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/perlatex/from-formula-to-stan"> <i class="bi bi-github" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+  <a href="" class="quarto-color-scheme-toggle quarto-navigation-tool  px-1" onclick="window.quartoToggleColorScheme(); return false;" title="切换深色模式"><i class="bi"></i></a>
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="展开或折叠侧边栏导航" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../chapters/ch01-why-stan.html">第一单元 · 入门</a></li><li class="breadcrumb-item"><a href="../chapters/ch01-why-stan.html">第 1 章　为什么学 Stan</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="展开或折叠侧边栏导航" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">从公式到 Stan</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../conventions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">代码约定</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
+ <span class="menu-text">第一单元 · 入门</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="展开或折叠此栏">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch01-why-stan.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">第 1 章　为什么学 Stan</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch02-skeleton.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 2 章　Stan 程序的骨架</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch03-types-constraints.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 3 章　数据类型与约束</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch04-target.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 4 章　<code>target +=</code> 与 <code>~</code></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true">
+ <span class="menu-text">第二单元 · 回归</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="展开或折叠此栏">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch05-linear-regression.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 5 章　线性回归：公式逐行变代码</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch06-run-diagnose.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 6 章　运行、诊断与后验整理</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch07-logistic.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 7 章　Logistic：只换似然</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch08-priors.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 8 章　先验与先验预测检查</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch09-recover-parameters.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 9 章　模拟数据，找回参数</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
+ <span class="menu-text">第三单元 · 层级</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="展开或折叠此栏">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch10-hierarchical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 10 章　层级模型：部分池化</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch11-funnel.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 11 章　漏斗与发散</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch12-non-centered.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 12 章　非中心化</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true">
+ <span class="menu-text">第四单元 · 潜变量</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true" aria-label="展开或折叠此栏">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch13-continuous-latent.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 13 章　连续潜变量</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch14-no-discrete-parameters.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 14 章　Stan 为什么不能有离散参数</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch15-log-sum-exp.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 15 章　<code>log_sum_exp</code>：边缘化离散变量</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">本页目录</h2>
+   
+  <ul>
+  <li><a href="#本章要回答的问题" id="toc-本章要回答的问题" class="nav-link active" data-scroll-target="#本章要回答的问题"><span class="header-section-number">1</span> 本章要回答的问题</a></li>
+  <li><a href="#公式卡片" id="toc-公式卡片" class="nav-link" data-scroll-target="#公式卡片"><span class="header-section-number">2</span> 公式卡片</a></li>
+  <li><a href="#模拟数据" id="toc-模拟数据" class="nav-link" data-scroll-target="#模拟数据"><span class="header-section-number">3</span> 模拟数据</a></li>
+  <li><a href="#先用-lm-看一看" id="toc-先用-lm-看一看" class="nav-link" data-scroll-target="#先用-lm-看一看"><span class="header-section-number">4</span> 先用 <code>lm()</code> 看一看</a></li>
+  <li><a href="#stan-代码" id="toc-stan-代码" class="nav-link" data-scroll-target="#stan-代码"><span class="header-section-number">5</span> Stan 代码</a></li>
+  <li><a href="#r-端运行" id="toc-r-端运行" class="nav-link" data-scroll-target="#r-端运行"><span class="header-section-number">6</span> R 端运行</a></li>
+  <li><a href="#后验整理与可视化" id="toc-后验整理与可视化" class="nav-link" data-scroll-target="#后验整理与可视化"><span class="header-section-number">7</span> 后验整理与可视化</a>
+  <ul class="collapse">
+  <li><a href="#参数估计" id="toc-参数估计" class="nav-link" data-scroll-target="#参数估计"><span class="header-section-number">7.1</span> 参数估计</a></li>
+  <li><a href="#哪个模型更像数据" id="toc-哪个模型更像数据" class="nav-link" data-scroll-target="#哪个模型更像数据"><span class="header-section-number">7.2</span> 哪个模型更像数据？</a></li>
+  </ul></li>
+  <li><a href="#为什么这样写" id="toc-为什么这样写" class="nav-link" data-scroll-target="#为什么这样写"><span class="header-section-number">8</span> 为什么这样写</a>
+  <ul class="collapse">
+  <li><a href="#为什么说-stan-更灵活" id="toc-为什么说-stan-更灵活" class="nav-link" data-scroll-target="#为什么说-stan-更灵活"><span class="header-section-number">8.1</span> 为什么说 Stan 更灵活？</a></li>
+  <li><a href="#为什么说-stan-更透明" id="toc-为什么说-stan-更透明" class="nav-link" data-scroll-target="#为什么说-stan-更透明"><span class="header-section-number">8.2</span> 为什么说 Stan 更透明？</a></li>
+  <li><a href="#brms-不也能做这些吗" id="toc-brms-不也能做这些吗" class="nav-link" data-scroll-target="#brms-不也能做这些吗"><span class="header-section-number">8.3</span> brms 不也能做这些吗？</a></li>
+  <li><a href="#学-stan-的代价是什么" id="toc-学-stan-的代价是什么" class="nav-link" data-scroll-target="#学-stan-的代价是什么"><span class="header-section-number">8.4</span> 学 Stan 的代价是什么？</a></li>
+  </ul></li>
+  <li><a href="#常见错误" id="toc-常见错误" class="nav-link" data-scroll-target="#常见错误"><span class="header-section-number">9</span> 常见错误</a></li>
+  <li><a href="#练习" id="toc-练习" class="nav-link" data-scroll-target="#练习"><span class="header-section-number">10</span> 练习</a></li>
+  <li><a href="#小结" id="toc-小结" class="nav-link" data-scroll-target="#小结"><span class="header-section-number">11</span> 小结</a></li>
+  <li><a href="#延伸" id="toc-延伸" class="nav-link" data-scroll-target="#延伸"><span class="header-section-number">12</span> 延伸</a></li>
+  <li><a href="#参考资料" id="toc-参考资料" class="nav-link" data-scroll-target="#参考资料"><span class="header-section-number">13</span> 参考资料</a></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/perlatex/from-formula-to-stan/blob/main/chapters/ch01-why-stan.qmd" class="toc-action"><i class="bi bi-github"></i>查看代码</a></li><li><a href="https://github.com/perlatex/from-formula-to-stan/issues/new" class="toc-action"><i class="bi empty"></i>反馈问题</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../chapters/ch01-why-stan.html">第一单元 · 入门</a></li><li class="breadcrumb-item"><a href="../chapters/ch01-why-stan.html">第 1 章　为什么学 Stan</a></li></ol></nav>
+<div class="quarto-title">
+<h1 class="title">第 1 章　为什么学 Stan</h1>
+</div>
+
+<div>
+  <div class="description">
+    灵活性与透明性：当现成函数“差一点点”时，Stan 让你写出真正想要的模型，并让每一个假设都看得见。
+  </div>
+</div>
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p>R 里已经有 <code>lm()</code>、<code>glm()</code>、<code>lme4</code>，还有建立在 Stan 之上的 brms。对很多日常分析来说，它们已经足够好。那么，为什么还要花时间学习自己写 Stan 程序？</p>
+<p>本章用一个具体例子回答这个问题。答案可以归结为两个词：<strong>灵活性</strong>和<strong>透明性</strong>。</p>
+<section id="本章要回答的问题" class="level2" data-number="1">
+<h2 data-number="1" class="anchored" data-anchor-id="本章要回答的问题"><span class="header-section-number">1</span> 本章要回答的问题</h2>
+<div class="chapter-questions">
+<ol type="1">
+<li>已经有 <code>lm()</code>、<code>glm()</code> 和 brms，为什么还要自己写 Stan 模型？</li>
+<li>灵活性体现在哪里：现成函数“差一点点”时怎么办？</li>
+<li>透明性体现在哪里：黑箱函数里藏着哪些看不见的默认设定？</li>
+<li>学 Stan 的代价是什么？什么时候不必用 Stan？</li>
+</ol>
+</div>
+</section>
+<section id="公式卡片" class="level2" data-number="2">
+<h2 data-number="2" class="anchored" data-anchor-id="公式卡片"><span class="header-section-number">2</span> 公式卡片</h2>
+<p>本章比较两个模型。它们的均值部分完全相同，区别只在于残差标准差 <span class="math inline">\(\sigma\)</span>。</p>
+<div class="formula-card">
+<p><span class="card-title">模型 A：残差标准差恒定（<code>lm()</code> 的默认假设）</span></p>
+<p><span class="math display">\[
+\begin{aligned}
+y_i &amp;\sim \operatorname{Normal}(\mu_i,\ \sigma) \\
+\mu_i &amp;= \alpha + \beta\, x_i
+\end{aligned}
+\]</span></p>
+</div>
+<div class="formula-card">
+<p><span class="card-title">模型 B：残差标准差随 <span class="math inline">\(x\)</span> 变化</span></p>
+<p><span class="math display">\[
+\begin{aligned}
+y_i &amp;\sim \operatorname{Normal}(\mu_i,\ \sigma_i) \\
+\mu_i &amp;= \alpha + \beta\, x_i \\
+\log \sigma_i &amp;= \gamma_0 + \gamma_1\, x_i
+\end{aligned}
+\]</span></p>
+</div>
+<p>模型 B 只多了一行：<span class="math inline">\(\sigma\)</span> 不再是一个常数，而是随 <span class="math inline">\(x\)</span> 变化。之所以对 <span class="math inline">\(\log \sigma_i\)</span> 建立线性关系，是因为标准差必须为正，而 <span class="math inline">\(\exp(\cdot)\)</span> 的结果永远为正。</p>
+</section>
+<section id="模拟数据" class="level2" data-number="3">
+<h2 data-number="3" class="anchored" data-anchor-id="模拟数据"><span class="header-section-number">3</span> 模拟数据</h2>
+<p>研究情境：一项认知实验中，被试完成不同难度（1–10 级）的任务，研究者记录反应时（毫秒）。一个常见现象是：<strong>任务越难，反应时越长，而且个体之间的差异也越大</strong>。</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyverse)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(cmdstanr)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(posterior)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidybayes)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"R/theme.R"</span>)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"R/utils.R"</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">2026</span>)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>N           <span class="ot">&lt;-</span> <span class="dv">150</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>alpha_true  <span class="ot">&lt;-</span> <span class="dv">400</span>    <span class="co"># mean RT at difficulty 0 (ms)</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>beta_true   <span class="ot">&lt;-</span> <span class="dv">30</span>     <span class="co"># RT increase per difficulty level (ms)</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>gamma0_true <span class="ot">&lt;-</span> <span class="dv">3</span>      <span class="co"># log SD at difficulty 0</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>gamma1_true <span class="ot">&lt;-</span> <span class="fl">0.15</span>   <span class="co"># increase in log SD per difficulty level</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>sim_data <span class="ot">&lt;-</span> <span class="fu">tibble</span>(</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">difficulty =</span> <span class="fu">sample</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">10</span>, N, <span class="at">replace =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">sigma      =</span> <span class="fu">exp</span>(gamma0_true <span class="sc">+</span> gamma1_true <span class="sc">*</span> difficulty),</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">rt         =</span> alpha_true <span class="sc">+</span> beta_true <span class="sc">*</span> difficulty <span class="sc">+</span> <span class="fu">rnorm</span>(N, <span class="dv">0</span>, sigma)</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>sim_data <span class="sc">|&gt;</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(difficulty) <span class="sc">|&gt;</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">n =</span> <span class="fu">n</span>(), <span class="at">mean_rt =</span> <span class="fu">mean</span>(rt), <span class="at">sd_rt =</span> <span class="fu">sd</span>(rt))</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; # A tibble: 10 × 4
+#&gt;    difficulty     n mean_rt sd_rt
+#&gt;         &lt;int&gt; &lt;int&gt;   &lt;dbl&gt; &lt;dbl&gt;
+#&gt;  1          1    18    423.  22.6
+#&gt;  2          2    17    455.  16.0
+#&gt;  3          3    18    499.  32.9
+#&gt;  4          4    18    524.  37.8
+#&gt;  5          5    19    532.  37.9
+#&gt;  6          6    18    576.  41.9
+#&gt;  7          7     5    628.  89.0
+#&gt;  8          8    15    645.  47.3
+#&gt;  9          9    12    685.  42.3
+#&gt; 10         10    10    699.  75.3</code></pre>
+</div>
+</div>
+<p>按难度分组汇总后可以看到，反应时的标准差从最低难度的约 23 毫秒增长到最高难度的约 90 毫秒（真值）。</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(sim_data, <span class="fu">aes</span>(<span class="at">x =</span> difficulty, <span class="at">y =</span> rt)) <span class="sc">+</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_jitter</span>(<span class="at">width =</span> <span class="fl">0.15</span>, <span class="at">height =</span> <span class="dv">0</span>) <span class="sc">+</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_x_continuous</span>(<span class="at">breaks =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">10</span>) <span class="sc">+</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Task difficulty"</span>, <span class="at">y =</span> <span class="st">"Reaction time (ms)"</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output-display">
+<div id="fig-sim-data" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-sim-data-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ch01-why-stan_files/figure-html/fig-sim-data-1.png" class="img-fluid figure-img" width="672">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-sim-data-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+图&nbsp;1: 模拟数据。难度越高，反应时越长，散布也越大。
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="先用-lm-看一看" class="level2" data-number="4">
+<h2 data-number="4" class="anchored" data-anchor-id="先用-lm-看一看"><span class="header-section-number">4</span> 先用 <code>lm()</code> 看一看</h2>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>fit_lm <span class="ot">&lt;-</span> <span class="fu">lm</span>(rt <span class="sc">~</span> difficulty, <span class="at">data =</span> sim_data)</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="fu">coef</span>(<span class="fu">summary</span>(fit_lm))</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt;              Estimate Std. Error  t value      Pr(&gt;|t|)
+#&gt; (Intercept) 393.82113   6.991444 56.32901 7.107623e-102
+#&gt; difficulty   31.17413   1.231316 25.31774  1.193121e-55</code></pre>
+</div>
+</div>
+<p>均值部分估计得不错。但是 <code>lm()</code> 假设所有观测共享同一个 <span class="math inline">\(\sigma\)</span>。看残差图：</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">tibble</span>(<span class="at">difficulty =</span> sim_data<span class="sc">$</span>difficulty, <span class="at">residual =</span> <span class="fu">resid</span>(fit_lm)) <span class="sc">|&gt;</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> difficulty, <span class="at">y =</span> residual)) <span class="sc">+</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_hline</span>(<span class="at">yintercept =</span> <span class="dv">0</span>, <span class="at">colour =</span> <span class="st">"grey60"</span>) <span class="sc">+</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_jitter</span>(<span class="at">width =</span> <span class="fl">0.15</span>, <span class="at">height =</span> <span class="dv">0</span>) <span class="sc">+</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_x_continuous</span>(<span class="at">breaks =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">10</span>) <span class="sc">+</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Task difficulty"</span>, <span class="at">y =</span> <span class="st">"Residual (ms)"</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output-display">
+<div id="fig-lm-residuals" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-lm-residuals-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ch01-why-stan_files/figure-html/fig-lm-residuals-1.png" class="img-fluid figure-img" width="672">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-lm-residuals-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+图&nbsp;2: lm() 的残差随难度呈喇叭形扩散，违背了“残差标准差恒定”的假设。
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>残差呈喇叭形，这是教科书式的“异方差”。<code>lm()</code> 本身没法把“<span class="math inline">\(\sigma\)</span> 随难度变化”写进模型。常见的补救办法是变换 <span class="math inline">\(y\)</span>、改用稳健标准误，或者换一个专门的函数。每一种办法都是在<strong>绕开</strong>问题，而不是<strong>直接描述</strong>问题。</p>
+</section>
+<section id="stan-代码" class="level2" data-number="5">
+<h2 data-number="5" class="anchored" data-anchor-id="stan-代码"><span class="header-section-number">5</span> Stan 代码</h2>
+<p>在 Stan 里，我们直接把公式卡片写下来。模型 A：</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode stan code-with-copy"><code class="sourceCode stan"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Chapter 1: Linear regression with constant residual SD</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="co">//</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="co">//   y_i   ~ Normal(alpha + beta * x_i, sigma)</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> {</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>&gt; N;               <span class="co">// number of observations</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[N] x;                  <span class="co">// predictor (task difficulty)</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[N] y;                  <span class="co">// outcome (reaction time, ms)</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="kw">parameters</span> {</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span> alpha;                   <span class="co">// intercept</span></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span> beta;                    <span class="co">// slope</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>&gt; sigma;          <span class="co">// residual SD, the same for every observation</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a><span class="kw">model</span> {</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>  <span class="co">// Priors</span></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> normal_lpdf(alpha | <span class="dv">400</span>, <span class="dv">100</span>);</span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> normal_lpdf(beta | <span class="dv">0</span>, <span class="dv">50</span>);</span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> exponential_lpdf(sigma | <span class="fl">0.02</span>);</span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>  <span class="co">// Likelihood</span></span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> normal_lpdf(y | alpha + beta * x, sigma);</span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a><span class="kw">generated quantities</span> {</span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a>  <span class="dt">array</span>[N] <span class="dt">real</span> y_rep = normal_rng(alpha + beta * x, sigma);</span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<p>模型 B：</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode stan code-with-copy"><code class="sourceCode stan"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Chapter 1: Linear regression whose residual SD changes with x</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co">//</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="co">//   y_i         ~ Normal(mu_i, sigma_i)</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co">//   mu_i        = alpha + beta * x_i</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="co">//   log sigma_i = gamma0 + gamma1 * x_i</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> {</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>&gt; N;               <span class="co">// number of observations</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[N] x;                  <span class="co">// predictor (task difficulty)</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[N] y;                  <span class="co">// outcome (reaction time, ms)</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a><span class="kw">parameters</span> {</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span> alpha;                   <span class="co">// intercept of the mean</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span> beta;                    <span class="co">// slope of the mean</span></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span> gamma0;                  <span class="co">// intercept of log SD</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span> gamma1;                  <span class="co">// slope of log SD</span></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a><span class="kw">model</span> {</span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[N] mu = alpha + beta * x;</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[N] sigma = exp(gamma0 + gamma1 * x);   <span class="co">// one SD per observation</span></span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>  <span class="co">// Priors</span></span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> normal_lpdf(alpha | <span class="dv">400</span>, <span class="dv">100</span>);</span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> normal_lpdf(beta | <span class="dv">0</span>, <span class="dv">50</span>);</span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> normal_lpdf(gamma0 | <span class="dv">3</span>, <span class="dv">2</span>);</span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> normal_lpdf(gamma1 | <span class="dv">0</span>, <span class="dv">1</span>);</span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>  <span class="co">// Likelihood</span></span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> normal_lpdf(y | mu, sigma);</span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a><span class="kw">generated quantities</span> {</span>
+<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a>  <span class="dt">array</span>[N] <span class="dt">real</span> y_rep = normal_rng(alpha + beta * x, exp(gamma0 + gamma1 * x));</span>
+<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<p>两个程序的差别一目了然：</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th>模型 A</th>
+<th>模型 B</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>parameters</code></td>
+<td><code>real&lt;lower=0&gt; sigma;</code></td>
+<td><code>real gamma0;</code> 和 <code>real gamma1;</code></td>
+</tr>
+<tr class="even">
+<td><code>model</code></td>
+<td>—</td>
+<td><code>vector[N] sigma = exp(gamma0 + gamma1 * x);</code></td>
+</tr>
+<tr class="odd">
+<td>似然</td>
+<td><code>normal_lpdf(y | alpha + beta * x, sigma)</code></td>
+<td><code>normal_lpdf(y | mu, sigma)</code>，此时 <code>sigma</code> 是一个向量</td>
+</tr>
+</tbody>
+</table>
+<p><strong>公式里多了一行，代码里也只多了一行。</strong>这就是灵活性：你能写下的公式，就能写成 Stan 程序。</p>
+</section>
+<section id="r-端运行" class="level2" data-number="6">
+<h2 data-number="6" class="anchored" data-anchor-id="r-端运行"><span class="header-section-number">6</span> R 端运行</h2>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>stan_data <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">N =</span> <span class="fu">nrow</span>(sim_data),</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">x =</span> sim_data<span class="sc">$</span>difficulty,</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">y =</span> sim_data<span class="sc">$</span>rt</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>mod_a <span class="ot">&lt;-</span> <span class="fu">cmdstan_model</span>(<span class="st">"stan/ch01_constant.stan"</span>)</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>mod_b <span class="ot">&lt;-</span> <span class="fu">cmdstan_model</span>(<span class="st">"stan/ch01_heteroscedastic.stan"</span>)</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>fit_a <span class="ot">&lt;-</span> mod_a<span class="sc">$</span><span class="fu">sample</span>(<span class="at">data =</span> stan_data, <span class="at">seed =</span> <span class="dv">2026</span>, <span class="at">chains =</span> <span class="dv">4</span>,</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>                      <span class="at">parallel_chains =</span> <span class="dv">4</span>, <span class="at">refresh =</span> <span class="dv">0</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; Running MCMC with 4 parallel chains...
+#&gt; 
+#&gt; Chain 1 finished in 0.2 seconds.
+#&gt; Chain 2 finished in 0.2 seconds.
+#&gt; Chain 3 finished in 0.2 seconds.
+#&gt; Chain 4 finished in 0.2 seconds.
+#&gt; 
+#&gt; All 4 chains finished successfully.
+#&gt; Mean chain execution time: 0.2 seconds.
+#&gt; Total execution time: 0.4 seconds.</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>fit_b <span class="ot">&lt;-</span> mod_b<span class="sc">$</span><span class="fu">sample</span>(<span class="at">data =</span> stan_data, <span class="at">seed =</span> <span class="dv">2026</span>, <span class="at">chains =</span> <span class="dv">4</span>,</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>                      <span class="at">parallel_chains =</span> <span class="dv">4</span>, <span class="at">refresh =</span> <span class="dv">0</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; Running MCMC with 4 parallel chains...
+#&gt; 
+#&gt; Chain 1 finished in 0.5 seconds.
+#&gt; Chain 2 finished in 0.6 seconds.
+#&gt; Chain 3 finished in 0.6 seconds.
+#&gt; Chain 4 finished in 0.6 seconds.
+#&gt; 
+#&gt; All 4 chains finished successfully.
+#&gt; Mean chain execution time: 0.6 seconds.
+#&gt; Total execution time: 0.7 seconds.</code></pre>
+</div>
+</div>
+</section>
+<section id="后验整理与可视化" class="level2" data-number="7">
+<h2 data-number="7" class="anchored" data-anchor-id="后验整理与可视化"><span class="header-section-number">7</span> 后验整理与可视化</h2>
+<section id="参数估计" class="level3" data-number="7.1">
+<h3 data-number="7.1" class="anchored" data-anchor-id="参数估计"><span class="header-section-number">7.1</span> 参数估计</h3>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>fit_a<span class="sc">$</span><span class="fu">summary</span>(<span class="fu">c</span>(<span class="st">"alpha"</span>, <span class="st">"beta"</span>, <span class="st">"sigma"</span>))</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; # A tibble: 3 × 10
+#&gt;   variable  mean median    sd   mad    q5   q95  rhat ess_bulk ess_tail
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 alpha    394.   394.   7.03  7.18 383.  406.   1.00    1702.    2016.
+#&gt; 2 beta      31.1   31.1  1.26  1.32  29.0  33.1  1.00    1681.    2003.
+#&gt; 3 sigma     41.9   41.8  2.56  2.56  37.9  46.3  1.01    2140.    1526.</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>fit_b<span class="sc">$</span><span class="fu">summary</span>(<span class="fu">c</span>(<span class="st">"alpha"</span>, <span class="st">"beta"</span>, <span class="st">"gamma0"</span>, <span class="st">"gamma1"</span>))</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; # A tibble: 4 × 10
+#&gt;   variable    mean  median     sd    mad      q5     q95  rhat ess_bulk ess_tail
+#&gt;   &lt;chr&gt;      &lt;dbl&gt;   &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 alpha    395.    394.    4.85   4.71   3.87e+2 403.     1.00    2192.    2194.
+#&gt; 2 beta      31.0    31.0   1.20   1.21   2.91e+1  33.0    1.00    2241.    2236.
+#&gt; 3 gamma0     3.01    3.01  0.123  0.125  2.81e+0   3.21   1.00    1747.    2245.
+#&gt; 4 gamma1     0.126   0.126 0.0222 0.0233 8.95e-2   0.162  1.00    1696.    2051.</code></pre>
+</div>
+</div>
+<p>两个模型对均值部分（<span class="math inline">\(\alpha\)</span>、<span class="math inline">\(\beta\)</span>）的估计相近。模型 B 还告诉我们：难度每增加一级，<span class="math inline">\(\log\sigma\)</span> 增加约 0.126，也就是标准差大约乘以 1.13。这个量本身可能就是一个有意义的研究发现：任务越难，个体差异越大。</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>fit_b <span class="sc">|&gt;</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">gather_draws</span>(gamma0, gamma1) <span class="sc">|&gt;</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> .value)) <span class="sc">+</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">stat_halfeye</span>(<span class="at">fill =</span> f2s_colors[[<span class="st">"post"</span>]], <span class="at">alpha =</span> <span class="fl">0.6</span>, <span class="at">normalize =</span> <span class="st">"panels"</span>) <span class="sc">+</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_vline</span>(</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> <span class="fu">tibble</span>(<span class="at">.variable =</span> <span class="fu">c</span>(<span class="st">"gamma0"</span>, <span class="st">"gamma1"</span>), <span class="at">true =</span> <span class="fu">c</span>(gamma0_true, gamma1_true)),</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">aes</span>(<span class="at">xintercept =</span> true), <span class="at">colour =</span> f2s_colors[[<span class="st">"truth"</span>]], <span class="at">linewidth =</span> <span class="fl">0.8</span></span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span> .variable, <span class="at">scales =</span> <span class="st">"free"</span>) <span class="sc">+</span></span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="cn">NULL</span>, <span class="at">y =</span> <span class="cn">NULL</span>) <span class="sc">+</span></span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">axis.text.y =</span> <span class="fu">element_blank</span>())</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output-display">
+<div id="fig-gamma" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-gamma-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ch01-why-stan_files/figure-html/fig-gamma-1.png" class="img-fluid figure-img" width="672">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-gamma-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+图&nbsp;3: 模型 B 中 γ₀ 与 γ₁ 的后验分布，橙色竖线是真值。
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="哪个模型更像数据" class="level3" data-number="7.2">
+<h3 data-number="7.2" class="anchored" data-anchor-id="哪个模型更像数据"><span class="header-section-number">7.2</span> 哪个模型更像数据？</h3>
+<p>两个模型都在 <code>generated quantities</code> 中生成了 <code>y_rep</code>。把每个难度水平上 <code>y_rep</code> 的 90% 区间和观测数据画在一起：</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>pred_interval <span class="ot">&lt;-</span> <span class="cf">function</span>(fit, label) {</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>  fit <span class="sc">|&gt;</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">spread_draws</span>(y_rep[i]) <span class="sc">|&gt;</span></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">left_join</span>(sim_data <span class="sc">|&gt;</span> <span class="fu">mutate</span>(<span class="at">i =</span> <span class="fu">row_number</span>()), <span class="at">by =</span> <span class="st">"i"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">group_by</span>(difficulty) <span class="sc">|&gt;</span></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">summarise</span>(</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>      <span class="at">lower =</span> <span class="fu">quantile</span>(y_rep, <span class="fl">0.05</span>),</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>      <span class="at">upper =</span> <span class="fu">quantile</span>(y_rep, <span class="fl">0.95</span>)</span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span></span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">model =</span> label)</span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>intervals <span class="ot">&lt;-</span> <span class="fu">bind_rows</span>(</span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pred_interval</span>(fit_a, <span class="st">"A: constant sigma"</span>),</span>
+<span id="cb19-15"><a href="#cb19-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pred_interval</span>(fit_b, <span class="st">"B: sigma varies with x"</span>)</span>
+<span id="cb19-16"><a href="#cb19-16" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb19-17"><a href="#cb19-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-18"><a href="#cb19-18" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(intervals, <span class="fu">aes</span>(<span class="at">x =</span> difficulty)) <span class="sc">+</span></span>
+<span id="cb19-19"><a href="#cb19-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_linerange</span>(<span class="fu">aes</span>(<span class="at">ymin =</span> lower, <span class="at">ymax =</span> upper),</span>
+<span id="cb19-20"><a href="#cb19-20" aria-hidden="true" tabindex="-1"></a>                 <span class="at">colour =</span> f2s_colors[[<span class="st">"post"</span>]], <span class="at">linewidth =</span> <span class="dv">4</span>, <span class="at">alpha =</span> <span class="fl">0.35</span>) <span class="sc">+</span></span>
+<span id="cb19-21"><a href="#cb19-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_jitter</span>(<span class="at">data =</span> sim_data, <span class="fu">aes</span>(<span class="at">y =</span> rt), <span class="at">width =</span> <span class="fl">0.15</span>, <span class="at">height =</span> <span class="dv">0</span>, <span class="at">size =</span> <span class="fl">0.8</span>) <span class="sc">+</span></span>
+<span id="cb19-22"><a href="#cb19-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span> model) <span class="sc">+</span></span>
+<span id="cb19-23"><a href="#cb19-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_x_continuous</span>(<span class="at">breaks =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">10</span>) <span class="sc">+</span></span>
+<span id="cb19-24"><a href="#cb19-24" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Task difficulty"</span>, <span class="at">y =</span> <span class="st">"Reaction time (ms)"</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output-display">
+<div id="fig-ppc" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-ppc-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ch01-why-stan_files/figure-html/fig-ppc-1.png" class="img-fluid figure-img" width="672">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-ppc-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+图&nbsp;4: 两个模型的后验预测 90% 区间（蓝色条）与观测数据（灰点）。模型 A 在低难度处区间过宽、在高难度处过窄；模型 B 的区间随难度变宽，与数据一致。
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>还可以数一数：在低难度（1–3）和高难度（8–10）两段，各有多大比例的观测落在 90% 预测区间内？理想情况下应该接近 90%。</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>coverage <span class="ot">&lt;-</span> <span class="cf">function</span>(fit, label) {</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>  fit <span class="sc">|&gt;</span></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">spread_draws</span>(y_rep[i]) <span class="sc">|&gt;</span></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">group_by</span>(i) <span class="sc">|&gt;</span></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">summarise</span>(<span class="at">lower =</span> <span class="fu">quantile</span>(y_rep, <span class="fl">0.05</span>), <span class="at">upper =</span> <span class="fu">quantile</span>(y_rep, <span class="fl">0.95</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">left_join</span>(sim_data <span class="sc">|&gt;</span> <span class="fu">mutate</span>(<span class="at">i =</span> <span class="fu">row_number</span>()), <span class="at">by =</span> <span class="st">"i"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">range =</span> <span class="fu">case_when</span>(</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>      difficulty <span class="sc">&lt;=</span> <span class="dv">3</span> <span class="sc">~</span> <span class="st">"Low (1-3)"</span>,</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>      difficulty <span class="sc">&gt;=</span> <span class="dv">8</span> <span class="sc">~</span> <span class="st">"High (8-10)"</span>,</span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span>            <span class="sc">~</span> <span class="st">"Middle (4-7)"</span></span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a>    )) <span class="sc">|&gt;</span></span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">group_by</span>(range) <span class="sc">|&gt;</span></span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">summarise</span>(<span class="at">coverage =</span> <span class="fu">mean</span>(rt <span class="sc">&gt;=</span> lower <span class="sc">&amp;</span> rt <span class="sc">&lt;=</span> upper)) <span class="sc">|&gt;</span></span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">model =</span> label)</span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true" tabindex="-1"></a><span class="fu">bind_rows</span>(</span>
+<span id="cb20-18"><a href="#cb20-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">coverage</span>(fit_a, <span class="st">"A: constant sigma"</span>),</span>
+<span id="cb20-19"><a href="#cb20-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">coverage</span>(fit_b, <span class="st">"B: sigma varies with x"</span>)</span>
+<span id="cb20-20"><a href="#cb20-20" aria-hidden="true" tabindex="-1"></a>) <span class="sc">|&gt;</span></span>
+<span id="cb20-21"><a href="#cb20-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pivot_wider</span>(<span class="at">names_from =</span> range, <span class="at">values_from =</span> coverage) <span class="sc">|&gt;</span></span>
+<span id="cb20-22"><a href="#cb20-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(model, <span class="st">`</span><span class="at">Low (1-3)</span><span class="st">`</span>, <span class="st">`</span><span class="at">Middle (4-7)</span><span class="st">`</span>, <span class="st">`</span><span class="at">High (8-10)</span><span class="st">`</span>) <span class="sc">|&gt;</span></span>
+<span id="cb20-23"><a href="#cb20-23" aria-hidden="true" tabindex="-1"></a>  knitr<span class="sc">::</span><span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">2</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="tbl-coverage" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-coverage-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+表&nbsp;1: 观测值落在 90% 后验预测区间内的比例
+</figcaption>
+<div aria-describedby="tbl-coverage-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output-display">
+<table class="cell caption-top table table-sm table-striped small">
+<thead>
+<tr class="header">
+<th style="text-align: left;">model</th>
+<th style="text-align: right;">Low (1-3)</th>
+<th style="text-align: right;">Middle (4-7)</th>
+<th style="text-align: right;">High (8-10)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">A: constant sigma</td>
+<td style="text-align: right;">0.98</td>
+<td style="text-align: right;">0.92</td>
+<td style="text-align: right;">0.84</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">B: sigma varies with x</td>
+<td style="text-align: right;">0.92</td>
+<td style="text-align: right;">0.88</td>
+<td style="text-align: right;">0.95</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<p>模型 A 在低难度处覆盖率偏高（区间太宽，对预测过于保守），在高难度处覆盖率偏低（区间太窄，对预测过于自信）。模型 B 在三段上的覆盖率都更接近 90%。样本量有限时这些比例本身也有波动，所以更可靠的证据是 <a href="#fig-ppc" class="quarto-xref">图&nbsp;4</a> 中区间宽度的整体形态。</p>
+</section>
+</section>
+<section id="为什么这样写" class="level2" data-number="8">
+<h2 data-number="8" class="anchored" data-anchor-id="为什么这样写"><span class="header-section-number">8</span> 为什么这样写</h2>
+<section id="为什么说-stan-更灵活" class="level3" data-number="8.1">
+<h3 data-number="8.1" class="anchored" data-anchor-id="为什么说-stan-更灵活"><span class="header-section-number">8.1</span> 为什么说 Stan 更灵活？</h3>
+<p><code>lm()</code>、<code>glm()</code> 这类函数提供的是<strong>模板</strong>：你从有限的选项中挑一个，模板替你写好模型。只要研究问题恰好落在模板里，这非常高效。</p>
+<p>一旦问题“差一点点”落在模板外，比如本章的异方差、自变量带测量误差、结果有上下界、观测中混有一部分随机猜测者，你就只能寻找另一个恰好实现了这个变体的 R 包，或者退而求其次去近似。</p>
+<p>Stan 提供的不是模板，而是一门<strong>描述概率模型的语言</strong>。只要你能把模型写成公式，就能逐行翻译成 Stan 程序。本系列后面的章节会反复看到这一点：从线性回归到 logistic 回归，只换一行似然（<a href="../chapters/ch07-logistic.html">第 7 章</a>）；从单层模型到层级模型，只是让参数也有自己的分布（<a href="../chapters/ch10-hierarchical.html">第 10 章</a>）；离散的潜在类别，也能通过边缘化写进模型（<a href="../chapters/ch15-log-sum-exp.html">第 15 章</a>）。</p>
+</section>
+<section id="为什么说-stan-更透明" class="level3" data-number="8.2">
+<h3 data-number="8.2" class="anchored" data-anchor-id="为什么说-stan-更透明"><span class="header-section-number">8.2</span> 为什么说 Stan 更透明？</h3>
+<p><code>lm(rt ~ difficulty)</code> 只有一行，但它背后有好几个没有写出来的假设：</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>假设</th>
+<th>在 <code>lm()</code> 中</th>
+<th>在本章的 Stan 程序中</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>残差服从正态分布</td>
+<td>隐含</td>
+<td><code>normal_lpdf(y | ...)</code>，写在代码里</td>
+</tr>
+<tr class="even">
+<td>残差标准差恒定</td>
+<td>隐含</td>
+<td>模型 A 写成 <code>real&lt;lower=0&gt; sigma;</code>；模型 B 写成 <code>exp(gamma0 + gamma1 * x)</code></td>
+</tr>
+<tr class="odd">
+<td>观测相互独立</td>
+<td>隐含</td>
+<td>似然是对每个观测的对数密度求和</td>
+</tr>
+<tr class="even">
+<td>参数的先验</td>
+<td>不存在（相当于平坦先验）</td>
+<td>每个参数一行，明确写出</td>
+</tr>
+</tbody>
+</table>
+<p>在 Stan 程序里，<strong>模型的每一个假设都是一行看得见的代码</strong>。这带来三个好处：</p>
+<ul>
+<li>你自己清楚模型到底假设了什么；</li>
+<li>审稿人、导师和合作者能够逐行核对，而不必猜测某个函数的默认设置；</li>
+<li>想改变某个假设时，你知道该改哪一行。</li>
+</ul>
+</section>
+<section id="brms-不也能做这些吗" class="level3" data-number="8.3">
+<h3 data-number="8.3" class="anchored" data-anchor-id="brms-不也能做这些吗"><span class="header-section-number">8.3</span> brms 不也能做这些吗？</h3>
+<p>可以。brms 是一个非常优秀的 R 包，它本身就是建立在 Stan 之上的：你写出 brms 的公式，brms 把它翻译成 Stan 程序，再交给 Stan 运行。本章的模型 B，用 brms 可以写成 <code>bf(rt ~ difficulty, sigma ~ difficulty)</code>。</p>
+<p>学会 Stan 和使用 brms 并不矛盾，反而相辅相成：</p>
+<ul>
+<li>当 brms 支持你的模型时，用它可以省很多时间；</li>
+<li>当你想知道 brms 到底拟合了什么时，<code>brms::make_stancode()</code> 会给出它生成的 Stan 代码，而读懂这段代码需要的正是本系列教的东西；</li>
+<li>当你的模型超出 brms 的公式语法时，你可以直接写 Stan。</li>
+</ul>
+</section>
+<section id="学-stan-的代价是什么" class="level3" data-number="8.4">
+<h3 data-number="8.4" class="anchored" data-anchor-id="学-stan-的代价是什么"><span class="header-section-number">8.4</span> 学 Stan 的代价是什么？</h3>
+<p>坦率地说，有三点：</p>
+<ol type="1">
+<li><strong>要自己写模型</strong>。没有模板替你做决定，每个先验、每个约束都需要你想清楚。这既是代价，也是收获。</li>
+<li><strong>要编译</strong>。每个 Stan 程序第一次运行前要编译成可执行文件，通常需要几十秒。</li>
+<li><strong>要理解采样器</strong>。当模型运行出问题（比如发散转移），你需要知道它在提示什么，以及如何改写模型。<a href="../chapters/ch06-run-diagnose.html">第 6 章</a>和<a href="../chapters/ch11-funnel.html">第 11–12 章</a>专门讲这些。</li>
+</ol>
+<p>如果你的问题就是一个标准的线性回归，数据充足，也不需要完整的后验分布，<code>lm()</code> 完全够用。Stan 的价值在于：<strong>当你的研究问题需要一个“不那么标准”的模型时，你不会被工具卡住。</strong></p>
+</section>
+</section>
+<section id="常见错误" class="level2" data-number="9">
+<h2 data-number="9" class="anchored" data-anchor-id="常见错误"><span class="header-section-number">9</span> 常见错误</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>错误认识</th>
+<th>实际情况</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>“贝叶斯一定要用 Stan，频率学派一定要用 <code>lm()</code>”</td>
+<td>工具和统计学派不是一一对应的。Stan 也能做优化（<code>$optimize()</code>），<code>lm()</code> 的结果也可以从贝叶斯角度理解</td>
+</tr>
+<tr class="even">
+<td>“Stan 只适合复杂模型”</td>
+<td>简单模型同样受益于透明性。本系列从最简单的模型开始，正是为了把每一行都讲清楚</td>
+</tr>
+<tr class="odd">
+<td>“学了 Stan 就不需要 brms 了”</td>
+<td>两者互补。会读 Stan 代码，才能真正用好 brms</td>
+</tr>
+<tr class="even">
+<td>“Stan 程序越长越专业”</td>
+<td>好的 Stan 程序应当与公式一一对应，尽量短而清楚</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="练习" class="level2" data-number="10">
+<h2 data-number="10" class="anchored" data-anchor-id="练习"><span class="header-section-number">10</span> 练习</h2>
+<p><strong>练习 1　找出隐含假设</strong></p>
+<p>不看本章的表格，列出 <code>lm(rt ~ difficulty)</code> 的所有隐含假设，然后在 <code>stan/ch01_constant.stan</code> 中为每一条假设找到对应的代码行。</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-1-contents" aria-controls="callout-1" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">提示</span>参考答案
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-1" class="callout-1-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>假设</th>
+<th>对应代码</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>均值是难度的线性函数</td>
+<td><code>alpha + beta * x</code></td>
+</tr>
+<tr class="even">
+<td>残差服从正态分布</td>
+<td><code>normal_lpdf(y | ...)</code></td>
+</tr>
+<tr class="odd">
+<td>所有观测共享同一个 <span class="math inline">\(\sigma\)</span></td>
+<td><code>real&lt;lower=0&gt; sigma;</code> 是一个标量</td>
+</tr>
+<tr class="even">
+<td>观测相互独立</td>
+<td>对向量 <code>y</code> 的对数密度直接求和，没有协方差结构</td>
+</tr>
+<tr class="odd">
+<td>参数的先验</td>
+<td><code>lm()</code> 没有先验；Stan 程序中的三行 <code>target += ..._lpdf(...)</code></td>
+</tr>
+</tbody>
+</table>
+<p>最后一条是 Stan 程序比 <code>lm()</code> <strong>多出来</strong>的假设。它不是负担，而是把原本隐含的东西（平坦先验）换成了一个经过思考、可以讨论的选择。</p>
+</div>
+</div>
+</div>
+<p><strong>练习 2　为什么用 <span class="math inline">\(\exp\)</span>？</strong></p>
+<p>模型 B 中写的是 <span class="math inline">\(\log\sigma_i = \gamma_0 + \gamma_1 x_i\)</span>，即 <span class="math inline">\(\sigma_i = \exp(\gamma_0 + \gamma_1 x_i)\)</span>。如果直接写 <span class="math inline">\(\sigma_i = \gamma_0 + \gamma_1 x_i\)</span>，会出现什么问题？</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-2-contents" aria-controls="callout-2" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">提示</span>参考答案
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-2" class="callout-2-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p>线性函数 <span class="math inline">\(\gamma_0 + \gamma_1 x_i\)</span> 可以取负值，而标准差必须为正。一旦采样器探索到某组 <span class="math inline">\((\gamma_0, \gamma_1)\)</span> 使得某个 <span class="math inline">\(\sigma_i \le 0\)</span>，<code>normal_lpdf</code> 就无法计算，这一步会被拒绝。</p>
+<p>用 <span class="math inline">\(\exp(\cdot)\)</span> 包裹之后，无论 <span class="math inline">\(\gamma_0\)</span>、<span class="math inline">\(\gamma_1\)</span> 取什么值，<span class="math inline">\(\sigma_i\)</span> 都为正，参数可以在整个实数空间中自由取值。这里的 <span class="math inline">\(\log\)</span> 就是一个<strong>链接函数</strong>。<a href="../chapters/ch07-logistic.html">第 7 章</a>的 logit 链接，是同一个思路在概率上的应用。</p>
+<p>另外，<span class="math inline">\(\gamma_1\)</span> 也因此有了乘法解释：<span class="math inline">\(x\)</span> 每增加 1，<span class="math inline">\(\sigma\)</span> 乘以 <span class="math inline">\(\exp(\gamma_1)\)</span>。</p>
+</div>
+</div>
+</div>
+<p><strong>练习 3　如果变异随难度先增后减？</strong></p>
+<p>假设在某些任务中，反应时的标准差在中等难度时最大。应该怎样修改模型 B？</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-3-contents" aria-controls="callout-3" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">提示</span>参考答案
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-3" class="callout-3-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p>在 <span class="math inline">\(\log\sigma_i\)</span> 的线性预测中加入二次项：</p>
+<p><span class="math display">\[
+\log \sigma_i = \gamma_0 + \gamma_1 x_i + \gamma_2 x_i^2
+\]</span></p>
+<p>Stan 程序中只需要在 <code>parameters</code> 块加一行 <code>real gamma2;</code>，在 <code>model</code> 块中把标准差改为：</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb21"><pre class="sourceCode stan code-with-copy"><code class="sourceCode stan"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="dt">vector</span>[N] sigma = exp(gamma0 + gamma1 * x + gamma2 * square(x));</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<p>再给 <code>gamma2</code> 加一行先验即可。<span class="math inline">\(\gamma_2 &lt; 0\)</span> 对应“先增后减”。这个练习再次说明：公式改一项，代码改一行。</p>
+</div>
+</div>
+</div>
+<p><strong>练习 4　比较两个模型的预测</strong></p>
+<p>用两个模型的后验，分别计算难度为 10 时反应时的 90% 预测区间，并与真实的数据生成分布比较。</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-4-contents" aria-controls="callout-4" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">提示</span>参考答案
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-4" class="callout-4-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>x_new <span class="ot">&lt;-</span> <span class="dv">10</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>pred_a <span class="ot">&lt;-</span> fit_a <span class="sc">|&gt;</span></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">spread_draws</span>(alpha, beta, sigma) <span class="sc">|&gt;</span></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">y_new =</span> <span class="fu">rnorm</span>(<span class="fu">n</span>(), alpha <span class="sc">+</span> beta <span class="sc">*</span> x_new, sigma))</span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>pred_b <span class="ot">&lt;-</span> fit_b <span class="sc">|&gt;</span></span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">spread_draws</span>(alpha, beta, gamma0, gamma1) <span class="sc">|&gt;</span></span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">y_new =</span> <span class="fu">rnorm</span>(<span class="fu">n</span>(), alpha <span class="sc">+</span> beta <span class="sc">*</span> x_new, <span class="fu">exp</span>(gamma0 <span class="sc">+</span> gamma1 <span class="sc">*</span> x_new)))</span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a>truth_interval <span class="ot">&lt;-</span> <span class="fu">qnorm</span>(</span>
+<span id="cb22-12"><a href="#cb22-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">c</span>(<span class="fl">0.05</span>, <span class="fl">0.95</span>),</span>
+<span id="cb22-13"><a href="#cb22-13" aria-hidden="true" tabindex="-1"></a>  <span class="at">mean =</span> alpha_true <span class="sc">+</span> beta_true <span class="sc">*</span> x_new,</span>
+<span id="cb22-14"><a href="#cb22-14" aria-hidden="true" tabindex="-1"></a>  <span class="at">sd   =</span> <span class="fu">exp</span>(gamma0_true <span class="sc">+</span> gamma1_true <span class="sc">*</span> x_new)</span>
+<span id="cb22-15"><a href="#cb22-15" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb22-16"><a href="#cb22-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-17"><a href="#cb22-17" aria-hidden="true" tabindex="-1"></a><span class="fu">tibble</span>(</span>
+<span id="cb22-18"><a href="#cb22-18" aria-hidden="true" tabindex="-1"></a>  <span class="at">source =</span> <span class="fu">c</span>(<span class="st">"Model A"</span>, <span class="st">"Model B"</span>, <span class="st">"True generating process"</span>),</span>
+<span id="cb22-19"><a href="#cb22-19" aria-hidden="true" tabindex="-1"></a>  <span class="at">lower  =</span> <span class="fu">c</span>(<span class="fu">quantile</span>(pred_a<span class="sc">$</span>y_new, <span class="fl">0.05</span>), <span class="fu">quantile</span>(pred_b<span class="sc">$</span>y_new, <span class="fl">0.05</span>), truth_interval[<span class="dv">1</span>]),</span>
+<span id="cb22-20"><a href="#cb22-20" aria-hidden="true" tabindex="-1"></a>  <span class="at">upper  =</span> <span class="fu">c</span>(<span class="fu">quantile</span>(pred_a<span class="sc">$</span>y_new, <span class="fl">0.95</span>), <span class="fu">quantile</span>(pred_b<span class="sc">$</span>y_new, <span class="fl">0.95</span>), truth_interval[<span class="dv">2</span>])</span>
+<span id="cb22-21"><a href="#cb22-21" aria-hidden="true" tabindex="-1"></a>) <span class="sc">|&gt;</span></span>
+<span id="cb22-22"><a href="#cb22-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">width =</span> upper <span class="sc">-</span> lower) <span class="sc">|&gt;</span></span>
+<span id="cb22-23"><a href="#cb22-23" aria-hidden="true" tabindex="-1"></a>  knitr<span class="sc">::</span><span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">0</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output-display">
+<table class="caption-top table table-sm table-striped small">
+<thead>
+<tr class="header">
+<th style="text-align: left;">source</th>
+<th style="text-align: right;">lower</th>
+<th style="text-align: right;">upper</th>
+<th style="text-align: right;">width</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Model A</td>
+<td style="text-align: right;">635</td>
+<td style="text-align: right;">777</td>
+<td style="text-align: right;">142</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Model B</td>
+<td style="text-align: right;">582</td>
+<td style="text-align: right;">825</td>
+<td style="text-align: right;">243</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">True generating process</td>
+<td style="text-align: right;">552</td>
+<td style="text-align: right;">848</td>
+<td style="text-align: right;">296</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<p>模型 A 的预测区间明显比真实分布窄，因为它用全体数据的“平均”标准差来预测最难的任务。模型 B 的区间宽得多，明显更接近真实分布；它仍略窄一些，是因为这份数据中 <span class="math inline">\(\gamma_1\)</span> 的后验均值略低于真值。当研究目的包括预测（比如为高难度任务设定时间限制）时，这个差别有实际意义。</p>
+</div>
+</div>
+</div>
+</section>
+<section id="小结" class="level2" data-number="11">
+<h2 data-number="11" class="anchored" data-anchor-id="小结"><span class="header-section-number">11</span> 小结</h2>
+<ul>
+<li><strong>灵活性</strong>：Stan 是描述概率模型的语言，而不是模板。公式多一行，代码多一行。</li>
+<li><strong>透明性</strong>：模型的每一个假设，包括分布、方差结构、独立性和先验，都是一行看得见、可以修改的代码。</li>
+<li>Stan 与 brms 互补：brms 生成 Stan 代码，读懂 Stan 让你真正理解 brms 在做什么。</li>
+<li>学 Stan 的代价是要自己想清楚模型、要编译、要理解采样器。这份教程的目的，就是让这些代价变得可控。</li>
+</ul>
+<blockquote class="blockquote">
+<p><strong>你写下的公式，就是你运行的模型。</strong></p>
+</blockquote>
+</section>
+<section id="延伸" class="level2" data-number="12">
+<h2 data-number="12" class="anchored" data-anchor-id="延伸"><span class="header-section-number">12</span> 延伸</h2>
+<ul>
+<li>下一章：<a href="../chapters/ch02-skeleton.html">第 2 章　Stan 程序的骨架</a>，看一个 Stan 程序由哪些块组成，每个块何时执行。</li>
+<li>本章的异方差模型属于“分布回归”（同时对均值和标准差建模）。在真实研究中，这类模型常用于分析个体差异如何随条件变化。Stan 模型库中有更多完整案例。</li>
+</ul>
+</section>
+<section id="参考资料" class="level2" data-number="13">
+<h2 data-number="13" class="anchored" data-anchor-id="参考资料"><span class="header-section-number">13</span> 参考资料</h2>
+<ul>
+<li>Stan 的设计理念与语言概览见 <span class="citation" data-cites="carpenter2017stan">Carpenter 等 (<a href="#ref-carpenter2017stan" role="doc-biblioref">2017</a>)</span>。</li>
+<li>Stan User’s Guide 的 <em>Regression Models</em> 一章给出了各类回归模型的写法 <span class="citation" data-cites="stan2026users">(<a href="#ref-stan2026users" role="doc-biblioref">Stan Development Team, 2026</a>)</span>。</li>
+<li>把模型构建、检验与修改作为一个完整流程来看待的思路，见 <span class="citation" data-cites="gelman2020workflow">Gelman 等 (<a href="#ref-gelman2020workflow" role="doc-biblioref">2020</a>)</span>。</li>
+<li><em>Statistical Rethinking</em> 第 1 章讨论了为什么统计模型应当被看作可以检查的“机器”，而不是现成的检验程序 <span class="citation" data-cites="mcelreath2020rethinking">(<a href="#ref-mcelreath2020rethinking" role="doc-biblioref">McElreath, 2020</a>)</span>。</li>
+</ul>
+<div id="refs" class="references csl-bib-body hanging-indent" data-entry-spacing="0" data-line-spacing="2" role="list">
+<div id="ref-carpenter2017stan" class="csl-entry" role="listitem">
+Carpenter, B., Gelman, A., Hoffman, M. D., Lee, D., Goodrich, B., Betancourt, M., Brubaker, M., Guo, J., Li, P., &amp; Riddell, A. (2017). Stan: A Probabilistic Programming Language. <em>Journal of Statistical Software</em>, <em>76</em>(1), 1～32. <a href="https://doi.org/10.18637/jss.v076.i01">https://doi.org/10.18637/jss.v076.i01</a>
+</div>
+<div id="ref-gelman2020workflow" class="csl-entry" role="listitem">
+Gelman, A., Vehtari, A., Simpson, D., Margossian, C. C., Carpenter, B., Yao, Y., Kennedy, L., Gabry, J., Bürkner, P.-C., &amp; Modrák, M. (2020). <em>Bayesian Workflow</em>. <a href="https://arxiv.org/abs/2011.01808">https://arxiv.org/abs/2011.01808</a>
+</div>
+<div id="ref-mcelreath2020rethinking" class="csl-entry" role="listitem">
+McElreath, R. (2020). <em>Statistical Rethinking: A Bayesian Course with Examples in <span>R</span> and <span>Stan</span></em> (2 版). CRC Press.
+</div>
+<div id="ref-stan2026users" class="csl-entry" role="listitem">
+Stan Development Team. (2026). <em>Stan User’s Guide</em> (Version 2.40). <a href="https://mc-stan.org/docs/stan-users-guide/">https://mc-stan.org/docs/stan-users-guide/</a>
+</div>
+</div>
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    // Ensure there is a toggle, if there isn't float one in the top right
+    if (window.document.querySelector('.quarto-color-scheme-toggle') === null) {
+      const a = window.document.createElement('a');
+      a.classList.add('top-right');
+      a.classList.add('quarto-color-scheme-toggle');
+      a.href = "";
+      a.onclick = function() { try { window.quartoToggleColorScheme(); } catch {} return false; };
+      const i = window.document.createElement("i");
+      i.classList.add('bi');
+      a.appendChild(i);
+      window.document.body.appendChild(a);
+    }
+    setColorSchemeToggle(hasAlternateSentinel())
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "已复制");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "已复制");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/perlatex\.github\.io\/from-formula-to-stan");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="../conventions.html" class="pagination-link" aria-label="代码约定">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">代码约定</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="../chapters/ch02-skeleton.html" class="pagination-link" aria-label="第 2 章　Stan 程序的骨架">
+        <span class="nav-page-text">第 2 章　Stan 程序的骨架</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      &nbsp;
+    </div>   
+    <div class="nav-footer-center">
+<p>正文 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> · 代码 <a href="https://github.com/perlatex/from-formula-to-stan/blob/main/LICENSE">MIT</a></p>
+<div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/perlatex/from-formula-to-stan/blob/main/chapters/ch01-why-stan.qmd" class="toc-action"><i class="bi bi-github"></i>查看代码</a></li><li><a href="https://github.com/perlatex/from-formula-to-stan/issues/new" class="toc-action"><i class="bi empty"></i>反馈问题</a></li></ul></div></div>
+    <div class="nav-footer-right">
+      &nbsp;
+    </div>
+  </div>
+</footer>
+
+
+
+
+</body></html>

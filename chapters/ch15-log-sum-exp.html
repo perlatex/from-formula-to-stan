@@ -1,0 +1,1888 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-Hans" xml:lang="zh-Hans"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.37">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="description" content="怎样在对数尺度上把离散变量“加掉”？log_sum_exp 解决了什么数值问题？边缘化之后怎样找回每个观测的类别？">
+
+<title>第 15 章　log_sum_exp：边缘化离散变量 – 从公式到 Stan</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+/* CSS for citations */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+  margin-bottom: 0em;
+}
+.hanging-indent div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}</style>
+
+
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<link href="../chapters/ch14-no-discrete-parameters.html" rel="prev">
+<script src="../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-acf12a64177840b8d86f2d4f01b2e9fb.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-dark-23bbe8b5e4efc1e257f6d59dce478b08.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-acf12a64177840b8d86f2d4f01b2e9fb.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap-da9c337e22b2253d242d90aca6293bb9.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-dark-9d1ac14fea2e996312cb70439bb7d11c.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../site_libs/bootstrap/bootstrap-da9c337e22b2253d242d90aca6293bb9.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "没有结果",
+    "search-matching-documents-text": "匹配的文档",
+    "search-copy-link-title": "复制搜索链接",
+    "search-hide-matches-text": "隐藏其它匹配结果",
+    "search-more-match-text": "更多匹配结果",
+    "search-more-matches-text": "更多匹配结果",
+    "search-clear-button-title": "清除",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "取消",
+    "search-submit-button-title": "提交",
+    "search-label": "搜索"
+  }
+}</script>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="../styles.css">
+</head>
+
+<body class="nav-sidebar docked nav-fixed quarto-light"><script id="quarto-html-before-body" type="application/javascript">
+    const toggleBodyColorMode = (bsSheetEl) => {
+      const mode = bsSheetEl.getAttribute("data-mode");
+      const bodyEl = window.document.querySelector("body");
+      if (mode === "dark") {
+        bodyEl.classList.add("quarto-dark");
+        bodyEl.classList.remove("quarto-light");
+      } else {
+        bodyEl.classList.add("quarto-light");
+        bodyEl.classList.remove("quarto-dark");
+      }
+    }
+    const toggleBodyColorPrimary = () => {
+      const bsSheetEl = window.document.querySelector("link#quarto-bootstrap:not([rel=disabled-stylesheet])");
+      if (bsSheetEl) {
+        toggleBodyColorMode(bsSheetEl);
+      }
+    }
+    const setColorSchemeToggle = (alternate) => {
+      const toggles = window.document.querySelectorAll('.quarto-color-scheme-toggle');
+      for (let i=0; i < toggles.length; i++) {
+        const toggle = toggles[i];
+        if (toggle) {
+          if (alternate) {
+            toggle.classList.add("alternate");
+          } else {
+            toggle.classList.remove("alternate");
+          }
+        }
+      }
+    };
+    const toggleColorMode = (alternate) => {
+      // Switch the stylesheets
+      const primaryStylesheets = window.document.querySelectorAll('link.quarto-color-scheme:not(.quarto-color-alternate)');
+      const alternateStylesheets = window.document.querySelectorAll('link.quarto-color-scheme.quarto-color-alternate');
+      manageTransitions('#quarto-margin-sidebar .nav-link', false);
+      if (alternate) {
+        // note: dark is layered on light, we don't disable primary!
+        enableStylesheet(alternateStylesheets);
+        for (const sheetNode of alternateStylesheets) {
+          if (sheetNode.id === "quarto-bootstrap") {
+            toggleBodyColorMode(sheetNode);
+          }
+        }
+      } else {
+        disableStylesheet(alternateStylesheets);
+        enableStylesheet(primaryStylesheets)
+        toggleBodyColorPrimary();
+      }
+      manageTransitions('#quarto-margin-sidebar .nav-link', true);
+      // Switch the toggles
+      setColorSchemeToggle(alternate)
+      // Hack to workaround the fact that safari doesn't
+      // properly recolor the scrollbar when toggling (#1455)
+      if (navigator.userAgent.indexOf('Safari') > 0 && navigator.userAgent.indexOf('Chrome') == -1) {
+        manageTransitions("body", false);
+        window.scrollTo(0, 1);
+        setTimeout(() => {
+          window.scrollTo(0, 0);
+          manageTransitions("body", true);
+        }, 40);
+      }
+    }
+    const disableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        stylesheet.rel = 'disabled-stylesheet';
+      }
+    }
+    const enableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        if(stylesheet.rel !== 'stylesheet') { // for Chrome, which will still FOUC without this check
+          stylesheet.rel = 'stylesheet';
+        }
+      }
+    }
+    const manageTransitions = (selector, allowTransitions) => {
+      const els = window.document.querySelectorAll(selector);
+      for (let i=0; i < els.length; i++) {
+        const el = els[i];
+        if (allowTransitions) {
+          el.classList.remove('notransition');
+        } else {
+          el.classList.add('notransition');
+        }
+      }
+    }
+    const isFileUrl = () => {
+      return window.location.protocol === 'file:';
+    }
+    const hasAlternateSentinel = () => {
+      let styleSentinel = getColorSchemeSentinel();
+      if (styleSentinel !== null) {
+        return styleSentinel === "alternate";
+      } else {
+        return false;
+      }
+    }
+    const setStyleSentinel = (alternate) => {
+      const value = alternate ? "alternate" : "default";
+      if (!isFileUrl()) {
+        window.localStorage.setItem("quarto-color-scheme", value);
+      } else {
+        localAlternateSentinel = value;
+      }
+    }
+    const getColorSchemeSentinel = () => {
+      if (!isFileUrl()) {
+        const storageValue = window.localStorage.getItem("quarto-color-scheme");
+        return storageValue != null ? storageValue : localAlternateSentinel;
+      } else {
+        return localAlternateSentinel;
+      }
+    }
+    const toggleGiscusIfUsed = (isAlternate, darkModeDefault) => {
+      const baseTheme = document.querySelector('#giscus-base-theme')?.value ?? 'light';
+      const alternateTheme = document.querySelector('#giscus-alt-theme')?.value ?? 'dark';
+      let newTheme = '';
+      if(authorPrefersDark) {
+        newTheme = isAlternate ? baseTheme : alternateTheme;
+      } else {
+        newTheme = isAlternate ? alternateTheme : baseTheme;
+      }
+      const changeGiscusTheme = () => {
+        // From: https://github.com/giscus/giscus/issues/336
+        const sendMessage = (message) => {
+          const iframe = document.querySelector('iframe.giscus-frame');
+          if (!iframe) return;
+          iframe.contentWindow.postMessage({ giscus: message }, 'https://giscus.app');
+        }
+        sendMessage({
+          setConfig: {
+            theme: newTheme
+          }
+        });
+      }
+      const isGiscussLoaded = window.document.querySelector('iframe.giscus-frame') !== null;
+      if (isGiscussLoaded) {
+        changeGiscusTheme();
+      }
+    };
+    const authorPrefersDark = false;
+    const darkModeDefault = authorPrefersDark;
+      document.querySelector('link#quarto-text-highlighting-styles.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+      document.querySelector('link#quarto-bootstrap.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+    let localAlternateSentinel = darkModeDefault ? 'alternate' : 'default';
+    // Dark / light mode switch
+    window.quartoToggleColorScheme = () => {
+      // Read the current dark / light value
+      let toAlternate = !hasAlternateSentinel();
+      toggleColorMode(toAlternate);
+      setStyleSentinel(toAlternate);
+      toggleGiscusIfUsed(toAlternate, darkModeDefault);
+      window.dispatchEvent(new Event('resize'));
+    };
+    // Switch to dark mode if need be
+    if (hasAlternateSentinel()) {
+      toggleColorMode(true);
+    } else {
+      toggleColorMode(false);
+    }
+  </script>
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="../index.html">
+    <span class="navbar-title">从公式到 Stan</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="搜索"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="展开或折叠导航栏" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link active" href="../index.html" aria-current="page"> 
+<span class="menu-text">首页</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../conventions.html"> 
+<span class="menu-text">代码约定</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/perlatex/from-formula-to-stan"> <i class="bi bi-github" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+  <a href="" class="quarto-color-scheme-toggle quarto-navigation-tool  px-1" onclick="window.quartoToggleColorScheme(); return false;" title="切换深色模式"><i class="bi"></i></a>
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="展开或折叠侧边栏导航" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../chapters/ch13-continuous-latent.html">第四单元 · 潜变量</a></li><li class="breadcrumb-item"><a href="../chapters/ch15-log-sum-exp.html">第 15 章　<code>log_sum_exp</code>：边缘化离散变量</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="展开或折叠侧边栏导航" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">从公式到 Stan</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../conventions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">代码约定</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
+ <span class="menu-text">第一单元 · 入门</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="展开或折叠此栏">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch01-why-stan.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 1 章　为什么学 Stan</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch02-skeleton.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 2 章　Stan 程序的骨架</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch03-types-constraints.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 3 章　数据类型与约束</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch04-target.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 4 章　<code>target +=</code> 与 <code>~</code></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true">
+ <span class="menu-text">第二单元 · 回归</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="展开或折叠此栏">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch05-linear-regression.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 5 章　线性回归：公式逐行变代码</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch06-run-diagnose.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 6 章　运行、诊断与后验整理</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch07-logistic.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 7 章　Logistic：只换似然</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch08-priors.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 8 章　先验与先验预测检查</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch09-recover-parameters.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 9 章　模拟数据，找回参数</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
+ <span class="menu-text">第三单元 · 层级</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="展开或折叠此栏">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch10-hierarchical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 10 章　层级模型：部分池化</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch11-funnel.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 11 章　漏斗与发散</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch12-non-centered.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 12 章　非中心化</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true">
+ <span class="menu-text">第四单元 · 潜变量</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true" aria-label="展开或折叠此栏">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch13-continuous-latent.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 13 章　连续潜变量</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch14-no-discrete-parameters.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">第 14 章　Stan 为什么不能有离散参数</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../chapters/ch15-log-sum-exp.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">第 15 章　<code>log_sum_exp</code>：边缘化离散变量</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">本页目录</h2>
+   
+  <ul>
+  <li><a href="#本章要回答的问题" id="toc-本章要回答的问题" class="nav-link active" data-scroll-target="#本章要回答的问题"><span class="header-section-number">1</span> 本章要回答的问题</a></li>
+  <li><a href="#公式卡片" id="toc-公式卡片" class="nav-link" data-scroll-target="#公式卡片"><span class="header-section-number">2</span> 公式卡片</a></li>
+  <li><a href="#模拟数据" id="toc-模拟数据" class="nav-link" data-scroll-target="#模拟数据"><span class="header-section-number">3</span> 模拟数据</a></li>
+  <li><a href="#stan-代码" id="toc-stan-代码" class="nav-link" data-scroll-target="#stan-代码"><span class="header-section-number">4</span> Stan 代码</a>
+  <ul class="collapse">
+  <li><a href="#在概率尺度上求和第-14-章的写法" id="toc-在概率尺度上求和第-14-章的写法" class="nav-link" data-scroll-target="#在概率尺度上求和第-14-章的写法"><span class="header-section-number">4.1</span> 在概率尺度上求和（第 14 章的写法）</a></li>
+  <li><a href="#在对数尺度上求和" id="toc-在对数尺度上求和" class="nav-link" data-scroll-target="#在对数尺度上求和"><span class="header-section-number">4.2</span> 在对数尺度上求和</a></li>
+  </ul></li>
+  <li><a href="#r-端运行" id="toc-r-端运行" class="nav-link" data-scroll-target="#r-端运行"><span class="header-section-number">5</span> R 端运行</a>
+  <ul class="collapse">
+  <li><a href="#概率尺度无法开始" id="toc-概率尺度无法开始" class="nav-link" data-scroll-target="#概率尺度无法开始"><span class="header-section-number">5.1</span> 概率尺度：无法开始</a></li>
+  <li><a href="#对数尺度顺利运行" id="toc-对数尺度顺利运行" class="nav-link" data-scroll-target="#对数尺度顺利运行"><span class="header-section-number">5.2</span> 对数尺度：顺利运行</a></li>
+  </ul></li>
+  <li><a href="#后验整理与可视化" id="toc-后验整理与可视化" class="nav-link" data-scroll-target="#后验整理与可视化"><span class="header-section-number">6</span> 后验整理与可视化</a>
+  <ul class="collapse">
+  <li><a href="#混合模型的参数" id="toc-混合模型的参数" class="nav-link" data-scroll-target="#混合模型的参数"><span class="header-section-number">6.1</span> 混合模型的参数</a></li>
+  <li><a href="#找回每个试次的类别" id="toc-找回每个试次的类别" class="nav-link" data-scroll-target="#找回每个试次的类别"><span class="header-section-number">6.2</span> 找回每个试次的类别</a></li>
+  </ul></li>
+  <li><a href="#为什么这样写" id="toc-为什么这样写" class="nav-link" data-scroll-target="#为什么这样写"><span class="header-section-number">7</span> 为什么这样写</a>
+  <ul class="collapse">
+  <li><a href="#为什么概率尺度上的求和会失败" id="toc-为什么概率尺度上的求和会失败" class="nav-link" data-scroll-target="#为什么概率尺度上的求和会失败"><span class="header-section-number">7.1</span> 为什么概率尺度上的求和会失败？</a></li>
+  <li><a href="#log_sum_exp-与-log_mix" id="toc-log_sum_exp-与-log_mix" class="nav-link" data-scroll-target="#log_sum_exp-与-log_mix"><span class="header-section-number">7.2</span> <code>log_sum_exp</code> 与 <code>log_mix</code></a></li>
+  <li><a href="#为什么不能直接写-y-..." id="toc-为什么不能直接写-y-..." class="nav-link" data-scroll-target="#为什么不能直接写-y-..."><span class="header-section-number">7.3</span> 为什么不能直接写 <code>y ~ ...</code>？</a></li>
+  <li><a href="#怎样找回类别" id="toc-怎样找回类别" class="nav-link" data-scroll-target="#怎样找回类别"><span class="header-section-number">7.4</span> 怎样找回类别？</a></li>
+  <li><a href="#为什么用-ordered" id="toc-为什么用-ordered" class="nav-link" data-scroll-target="#为什么用-ordered"><span class="header-section-number">7.5</span> 为什么用 <code>ordered</code>？</a></li>
+  </ul></li>
+  <li><a href="#常见错误" id="toc-常见错误" class="nav-link" data-scroll-target="#常见错误"><span class="header-section-number">8</span> 常见错误</a></li>
+  <li><a href="#练习" id="toc-练习" class="nav-link" data-scroll-target="#练习"><span class="header-section-number">9</span> 练习</a></li>
+  <li><a href="#小结" id="toc-小结" class="nav-link" data-scroll-target="#小结"><span class="header-section-number">10</span> 小结</a></li>
+  <li><a href="#延伸" id="toc-延伸" class="nav-link" data-scroll-target="#延伸"><span class="header-section-number">11</span> 延伸</a></li>
+  <li><a href="#参考资料" id="toc-参考资料" class="nav-link" data-scroll-target="#参考资料"><span class="header-section-number">12</span> 参考资料</a></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/perlatex/from-formula-to-stan/blob/main/chapters/ch15-log-sum-exp.qmd" class="toc-action"><i class="bi bi-github"></i>查看代码</a></li><li><a href="https://github.com/perlatex/from-formula-to-stan/issues/new" class="toc-action"><i class="bi empty"></i>反馈问题</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../chapters/ch13-continuous-latent.html">第四单元 · 潜变量</a></li><li class="breadcrumb-item"><a href="../chapters/ch15-log-sum-exp.html">第 15 章　<code>log_sum_exp</code>：边缘化离散变量</a></li></ol></nav>
+<div class="quarto-title">
+<h1 class="title">第 15 章　<code>log_sum_exp</code>：边缘化离散变量</h1>
+</div>
+
+<div>
+  <div class="description">
+    怎样在对数尺度上把离散变量“加掉”？log_sum_exp 解决了什么数值问题？边缘化之后怎样找回每个观测的类别？
+  </div>
+</div>
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p><a href="../chapters/ch14-no-discrete-parameters.html">第 14 章</a>用边缘化绕开了离散参数：对离散变量的所有取值求和。但那一章的写法先用 <code>exp()</code> 把对数概率变回概率，相加后再取 <code>log()</code>。它在那份数据上运行良好，本章却会看到，在另一份再普通不过的数据上，同样的写法<strong>连第一步都迈不出去</strong>。</p>
+<p>解决办法是一个看起来很小的函数：<code>log_sum_exp</code>。它是 Stan 中所有混合模型、潜类别模型、占域模型的基石，也是本系列的最后一块拼图。</p>
+<section id="本章要回答的问题" class="level2" data-number="1">
+<h2 data-number="1" class="anchored" data-anchor-id="本章要回答的问题"><span class="header-section-number">1</span> 本章要回答的问题</h2>
+<div class="chapter-questions">
+<ol type="1">
+<li>怎样把离散变量“加掉”？</li>
+<li>为什么要在对数尺度上求和？<code>log_sum_exp</code> 解决了什么数值问题？</li>
+<li>边缘化之后，怎样在 <code>generated quantities</code> 中找回每个观测属于哪一类？</li>
+</ol>
+</div>
+</section>
+<section id="公式卡片" class="level2" data-number="2">
+<h2 data-number="2" class="anchored" data-anchor-id="公式卡片"><span class="header-section-number">2</span> 公式卡片</h2>
+<div class="formula-card">
+<p><span class="card-title">两成分混合模型</span></p>
+<p><span class="math display">\[
+\begin{aligned}
+z_i &amp;\sim \operatorname{Bernoulli}(\lambda) &amp; &amp;\text{1 = 快速猜测，0 = 认真作答} \\
+y_i \mid z_i = 1 &amp;\sim \operatorname{Normal}(\mu_1,\ \sigma_1) \\
+y_i \mid z_i = 0 &amp;\sim \operatorname{Normal}(\mu_2,\ \sigma_2), \qquad \mu_1 &lt; \mu_2
+\end{aligned}
+\]</span></p>
+<p>边缘化之后：</p>
+<p><span class="math display">\[
+p(y_i) = \lambda\, \operatorname{Normal}(y_i \mid \mu_1, \sigma_1) + (1 - \lambda)\, \operatorname{Normal}(y_i \mid \mu_2, \sigma_2)
+\]</span></p>
+</div>
+<div class="formula-card">
+<p><span class="card-title">在对数尺度上求和</span></p>
+<p>记 <span class="math inline">\(a = \log\lambda + \log\operatorname{Normal}(y_i \mid \mu_1, \sigma_1)\)</span>，<span class="math inline">\(b = \log(1-\lambda) + \log\operatorname{Normal}(y_i \mid \mu_2, \sigma_2)\)</span>，则</p>
+<p><span class="math display">\[
+\log p(y_i) = \log\left(e^{a} + e^{b}\right) = \operatorname{log\_sum\_exp}(a, b) = m + \log\left(e^{a - m} + e^{b - m}\right), \qquad m = \max(a, b)
+\]</span></p>
+</div>
+<p>最后一个等号是整个技巧的关键：先把较大的那个数提出来，括号里剩下的指数中至少有一个等于 <span class="math inline">\(e^0 = 1\)</span>，求和结果永远不会下溢为 0。</p>
+</section>
+<section id="模拟数据" class="level2" data-number="3">
+<h2 data-number="3" class="anchored" data-anchor-id="模拟数据"><span class="header-section-number">3</span> 模拟数据</h2>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyverse)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(cmdstanr)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(posterior)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidybayes)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"R/theme.R"</span>)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"R/utils.R"</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>研究情境：在一项在线实验中，被试有时会不读题就快速按键。研究者想估计这类“快速猜测”在全部试次中占多大比例，并找出哪些试次可能是猜测。反应时以毫秒为单位记录。</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">2026</span>)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>N           <span class="ot">&lt;-</span> <span class="dv">300</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>lambda_true <span class="ot">&lt;-</span> <span class="fl">0.2</span>             <span class="co"># proportion of fast guesses</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>mu_true     <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="dv">300</span>, <span class="dv">700</span>)     <span class="co"># mean RT (ms): guesses, deliberate responses</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>sigma_true  <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="dv">50</span>, <span class="dv">120</span>)      <span class="co"># SD of each component</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>z_true <span class="ot">&lt;-</span> <span class="fu">rbinom</span>(N, <span class="dv">1</span>, lambda_true)</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>rt     <span class="ot">&lt;-</span> <span class="fu">ifelse</span>(z_true <span class="sc">==</span> <span class="dv">1</span>,</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>                 <span class="fu">rnorm</span>(N, mu_true[<span class="dv">1</span>], sigma_true[<span class="dv">1</span>]),</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>                 <span class="fu">rnorm</span>(N, mu_true[<span class="dv">2</span>], sigma_true[<span class="dv">2</span>]))</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>sim_data <span class="ot">&lt;-</span> <span class="fu">tibble</span>(<span class="at">trial =</span> <span class="dv">1</span><span class="sc">:</span>N, z_true, rt)</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>stan_data <span class="ot">&lt;-</span> <span class="fu">list</span>(<span class="at">N =</span> N, <span class="at">y =</span> rt)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(sim_data, <span class="fu">aes</span>(<span class="at">x =</span> rt, <span class="at">fill =</span> <span class="fu">factor</span>(z_true, <span class="at">labels =</span> <span class="fu">c</span>(<span class="st">"Deliberate"</span>, <span class="st">"Fast guess"</span>)))) <span class="sc">+</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_histogram</span>(<span class="at">binwidth =</span> <span class="dv">25</span>, <span class="at">alpha =</span> <span class="fl">0.8</span>, <span class="at">position =</span> <span class="st">"stack"</span>) <span class="sc">+</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_fill_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="at">Deliberate =</span> f2s_colors[[<span class="st">"post"</span>]], <span class="st">`</span><span class="at">Fast guess</span><span class="st">`</span> <span class="ot">=</span> f2s_colors[[<span class="st">"truth"</span>]])) <span class="sc">+</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Reaction time (ms)"</span>, <span class="at">y =</span> <span class="st">"Trials"</span>, <span class="at">fill =</span> <span class="st">"True class"</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output-display">
+<div id="fig-data" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-data-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ch15-log-sum-exp_files/figure-html/fig-data-1.png" class="img-fluid figure-img" width="672">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-data-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+图&nbsp;1: 反应时分布。颜色表示真实类别（实际研究中并不知道），两类在约 350–450 毫秒之间有所重叠。
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="stan-代码" class="level2" data-number="4">
+<h2 data-number="4" class="anchored" data-anchor-id="stan-代码"><span class="header-section-number">4</span> Stan 代码</h2>
+<section id="在概率尺度上求和第-14-章的写法" class="level3" data-number="4.1">
+<h3 data-number="4.1" class="anchored" data-anchor-id="在概率尺度上求和第-14-章的写法"><span class="header-section-number">4.1</span> 在概率尺度上求和（第 14 章的写法）</h3>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode stan code-with-copy"><code class="sourceCode stan"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">model</span> {</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> beta_lpdf(lambda | <span class="dv">2</span>, <span class="dv">2</span>);</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> normal_lpdf(mu | <span class="dv">500</span>, <span class="dv">300</span>);</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> exponential_lpdf(sigma | <span class="fl">0.01</span>);</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span>:N) {</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">target +=</span> log(lambda * exp(normal_lpdf(y[i] | mu[<span class="dv">1</span>], sigma[<span class="dv">1</span>]))</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>                  + (<span class="dv">1</span> - lambda) * exp(normal_lpdf(y[i] | mu[<span class="dv">2</span>], sigma[<span class="dv">2</span>])));</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</section>
+<section id="在对数尺度上求和" class="level3" data-number="4.2">
+<h3 data-number="4.2" class="anchored" data-anchor-id="在对数尺度上求和"><span class="header-section-number">4.2</span> 在对数尺度上求和</h3>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode stan code-with-copy"><code class="sourceCode stan"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Chapter 15: Two-component mixture, summed on the log scale with log_sum_exp</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="co">//</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co">//   log p(y_i) = log_sum_exp( log(lambda)     + log Normal(y_i | mu_1, sigma_1),</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co">//                             log(1 - lambda) + log Normal(y_i | mu_2, sigma_2) )</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> {</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span>&lt;<span class="kw">lower</span>=<span class="dv">1</span>&gt; N;                       <span class="co">// number of trials</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[N] y;                          <span class="co">// reaction time (ms)</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="kw">parameters</span> {</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>, <span class="kw">upper</span>=<span class="dv">1</span>&gt; lambda;        <span class="co">// proportion of fast guesses</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>  <span class="dt">ordered</span>[<span class="dv">2</span>] mu;                        <span class="co">// mean RT: mu[1] = guesses, mu[2] = deliberate</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>&gt;[<span class="dv">2</span>] sigma;             <span class="co">// SD of each component</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="kw">model</span> {</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> beta_lpdf(lambda | <span class="dv">2</span>, <span class="dv">2</span>);</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> normal_lpdf(mu | <span class="dv">500</span>, <span class="dv">300</span>);</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> exponential_lpdf(sigma | <span class="fl">0.01</span>);</span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span>:N) {</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>    <span class="kw">target +=</span> log_sum_exp(log(lambda)   + normal_lpdf(y[i] | mu[<span class="dv">1</span>], sigma[<span class="dv">1</span>]),</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>                          log1m(lambda) + normal_lpdf(y[i] | mu[<span class="dv">2</span>], sigma[<span class="dv">2</span>]));</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a><span class="kw">generated quantities</span> {</span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[N] prob_guess;                 <span class="co">// P(trial i is a fast guess | y_i, parameters)</span></span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>  <span class="dt">array</span>[N] <span class="dt">int</span> z_draw;                  <span class="co">// one draw of the class of each trial</span></span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[N] log_lik;</span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span>:N) {</span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a>    <span class="dt">real</span> lp_guess = log(lambda)   + normal_lpdf(y[i] | mu[<span class="dv">1</span>], sigma[<span class="dv">1</span>]);</span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a>    <span class="dt">real</span> lp_delib = log1m(lambda) + normal_lpdf(y[i] | mu[<span class="dv">2</span>], sigma[<span class="dv">2</span>]);</span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a>    log_lik[i]    = log_sum_exp(lp_guess, lp_delib);</span>
+<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a>    prob_guess[i] = exp(lp_guess - log_lik[i]);</span>
+<span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a>    z_draw[i]     = bernoulli_rng(prob_guess[i]);</span>
+<span id="cb5-39"><a href="#cb5-39" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb5-40"><a href="#cb5-40" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<p>两个程序的 <code>data</code>、<code>parameters</code> 块完全相同。区别只在 <code>model</code> 块的那一行：</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th>概率尺度</th>
+<th>对数尺度</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>写法</td>
+<td><code>log(lambda * exp(lp1) + (1 - lambda) * exp(lp2))</code></td>
+<td><code>log_sum_exp(log(lambda) + lp1, log1m(lambda) + lp2)</code></td>
+</tr>
+<tr class="even">
+<td>混合比例</td>
+<td>乘在概率上</td>
+<td>以对数形式加在对数密度上</td>
+</tr>
+<tr class="odd">
+<td>数值稳定性</td>
+<td><code>lp1</code>、<code>lp2</code> 很小时下溢为 <span class="math inline">\(-\infty\)</span></td>
+<td>始终稳定</td>
+</tr>
+</tbody>
+</table>
+<p>其中 <code>lp1</code>、<code>lp2</code> 分别代表两个成分的对数密度。<code>log1m(lambda)</code> 计算 <span class="math inline">\(\log(1 - \lambda)\)</span>，在 <span class="math inline">\(\lambda\)</span> 很小时比 <code>log(1 - lambda)</code> 更精确。</p>
+<p><code>mu</code> 声明为 <code>ordered[2]</code>，保证 <span class="math inline">\(\mu_1 &lt; \mu_2\)</span>。为什么需要它，见练习 3。</p>
+</section>
+</section>
+<section id="r-端运行" class="level2" data-number="5">
+<h2 data-number="5" class="anchored" data-anchor-id="r-端运行"><span class="header-section-number">5</span> R 端运行</h2>
+<section id="概率尺度无法开始" class="level3" data-number="5.1">
+<h3 data-number="5.1" class="anchored" data-anchor-id="概率尺度无法开始"><span class="header-section-number">5.1</span> 概率尺度：无法开始</h3>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>mod_naive <span class="ot">&lt;-</span> <span class="fu">cmdstan_model</span>(<span class="st">"stan/ch15_mixture_naive.stan"</span>)</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>naive_log <span class="ot">&lt;-</span> <span class="fu">character</span>()</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>fit_naive <span class="ot">&lt;-</span> <span class="fu">withCallingHandlers</span>(</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>  mod_naive<span class="sc">$</span><span class="fu">sample</span>(<span class="at">data =</span> stan_data, <span class="at">seed =</span> <span class="dv">2026</span>, <span class="at">chains =</span> <span class="dv">1</span>, <span class="at">refresh =</span> <span class="dv">0</span>),</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">message =</span> <span class="cf">function</span>(m) {</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    naive_log <span class="ot">&lt;&lt;-</span> <span class="fu">c</span>(naive_log, <span class="fu">conditionMessage</span>(m))</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">invokeRestart</span>(<span class="st">"muffleMessage"</span>)</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>  },</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">warning =</span> <span class="cf">function</span>(w) {</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    naive_log <span class="ot">&lt;&lt;-</span> <span class="fu">c</span>(naive_log, <span class="fu">conditionMessage</span>(w))</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">invokeRestart</span>(<span class="st">"muffleWarning"</span>)</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; Running MCMC with 1 chain...</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Show the first rejection and the final verdict</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>naive_lines <span class="ot">&lt;-</span> <span class="fu">unlist</span>(<span class="fu">str_split</span>(naive_log, <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>))</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="fu">head</span>(naive_lines[naive_lines <span class="sc">!=</span> <span class="st">""</span>], <span class="dv">3</span>), <span class="at">sep =</span> <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; Chain 1 Rejecting initial value:
+#&gt; Chain 1   Log probability evaluates to log(0), i.e. negative infinity.
+#&gt; Chain 1   Stan can't start sampling from this initial value.</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"...</span><span class="sc">\n</span><span class="st">"</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; ...</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Number of rejected initial values:"</span>,</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="fu">sum</span>(<span class="fu">str_detect</span>(naive_lines, <span class="st">"Rejecting initial value"</span>)), <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; Number of rejected initial values: 100</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="fu">tail</span>(naive_lines[naive_lines <span class="sc">!=</span> <span class="st">""</span>], <span class="dv">2</span>), <span class="at">sep =</span> <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; Chain 1 finished unexpectedly!
+#&gt; No chains finished successfully. Unable to retrieve the fit.</code></pre>
+</div>
+</div>
+<p>Stan 尝试了 100 个随机初值，每一个都得到 <code>Log probability evaluates to log(0)</code>，最终放弃。</p>
+</section>
+<section id="对数尺度顺利运行" class="level3" data-number="5.2">
+<h3 data-number="5.2" class="anchored" data-anchor-id="对数尺度顺利运行"><span class="header-section-number">5.2</span> 对数尺度：顺利运行</h3>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>mod_lse <span class="ot">&lt;-</span> <span class="fu">cmdstan_model</span>(<span class="st">"stan/ch15_mixture_lse.stan"</span>)</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>fit_lse <span class="ot">&lt;-</span> mod_lse<span class="sc">$</span><span class="fu">sample</span>(</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> stan_data, <span class="at">seed =</span> <span class="dv">2026</span>, <span class="at">chains =</span> <span class="dv">4</span>, <span class="at">parallel_chains =</span> <span class="dv">4</span>, <span class="at">refresh =</span> <span class="dv">0</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; Running MCMC with 4 parallel chains...
+#&gt; 
+#&gt; Chain 1 finished in 3.2 seconds.
+#&gt; Chain 3 finished in 3.7 seconds.
+#&gt; Chain 4 finished in 3.9 seconds.
+#&gt; Chain 2 finished in 14.0 seconds.
+#&gt; 
+#&gt; All 4 chains finished successfully.
+#&gt; Mean chain execution time: 6.2 seconds.
+#&gt; Total execution time: 14.2 seconds.</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>fit_lse<span class="sc">$</span><span class="fu">diagnostic_summary</span>()</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; $num_divergent
+#&gt; [1] 0 0 0 0
+#&gt; 
+#&gt; $num_max_treedepth
+#&gt; [1] 0 0 0 0
+#&gt; 
+#&gt; $ebfmi
+#&gt; [1] 1.063358 1.043523 1.024800 1.138789</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="后验整理与可视化" class="level2" data-number="6">
+<h2 data-number="6" class="anchored" data-anchor-id="后验整理与可视化"><span class="header-section-number">6</span> 后验整理与可视化</h2>
+<section id="混合模型的参数" class="level3" data-number="6.1">
+<h3 data-number="6.1" class="anchored" data-anchor-id="混合模型的参数"><span class="header-section-number">6.1</span> 混合模型的参数</h3>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>fit_lse<span class="sc">$</span><span class="fu">summary</span>(<span class="fu">c</span>(<span class="st">"lambda"</span>, <span class="st">"mu"</span>, <span class="st">"sigma"</span>), <span class="st">"mean"</span>, <span class="sc">~</span> <span class="fu">quantile</span>(.x, <span class="fu">c</span>(<span class="fl">0.05</span>, <span class="fl">0.95</span>)), <span class="st">"rhat"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">true =</span> <span class="fu">c</span>(lambda_true, mu_true, sigma_true)) <span class="sc">|&gt;</span></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>  knitr<span class="sc">::</span><span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">2</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="tbl-params" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-params-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+表&nbsp;1: 混合模型参数的后验（与真值比较）
+</figcaption>
+<div aria-describedby="tbl-params-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output-display">
+<table class="cell caption-top table table-sm table-striped small">
+<thead>
+<tr class="header">
+<th style="text-align: left;">variable</th>
+<th style="text-align: right;">mean</th>
+<th style="text-align: right;">5%</th>
+<th style="text-align: right;">95%</th>
+<th style="text-align: right;">rhat</th>
+<th style="text-align: right;">true</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">lambda</td>
+<td style="text-align: right;">0.18</td>
+<td style="text-align: right;">0.14</td>
+<td style="text-align: right;">0.22</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">0.2</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">mu[1]</td>
+<td style="text-align: right;">301.28</td>
+<td style="text-align: right;">289.69</td>
+<td style="text-align: right;">312.47</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">300.0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">mu[2]</td>
+<td style="text-align: right;">700.91</td>
+<td style="text-align: right;">688.45</td>
+<td style="text-align: right;">713.07</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">700.0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">sigma[1]</td>
+<td style="text-align: right;">47.70</td>
+<td style="text-align: right;">40.11</td>
+<td style="text-align: right;">57.03</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">50.0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">sigma[2]</td>
+<td style="text-align: right;">114.49</td>
+<td style="text-align: right;">105.50</td>
+<td style="text-align: right;">124.33</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">120.0</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>post_mean <span class="ot">&lt;-</span> fit_lse<span class="sc">$</span><span class="fu">summary</span>(<span class="fu">c</span>(<span class="st">"lambda"</span>, <span class="st">"mu"</span>, <span class="st">"sigma"</span>), <span class="st">"mean"</span>) <span class="sc">|&gt;</span> <span class="fu">deframe</span>()</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>density_curves <span class="ot">&lt;-</span> <span class="fu">tibble</span>(<span class="at">rt =</span> <span class="fu">seq</span>(<span class="dv">100</span>, <span class="dv">1100</span>, <span class="at">length.out =</span> <span class="dv">400</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">`</span><span class="at">Fast guess</span><span class="st">`</span> <span class="ot">=</span> post_mean[[<span class="st">"lambda"</span>]] <span class="sc">*</span> <span class="fu">dnorm</span>(rt, post_mean[[<span class="st">"mu[1]"</span>]], post_mean[[<span class="st">"sigma[1]"</span>]]),</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">Deliberate   =</span> (<span class="dv">1</span> <span class="sc">-</span> post_mean[[<span class="st">"lambda"</span>]]) <span class="sc">*</span> <span class="fu">dnorm</span>(rt, post_mean[[<span class="st">"mu[2]"</span>]], post_mean[[<span class="st">"sigma[2]"</span>]]),</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">Mixture      =</span> <span class="st">`</span><span class="at">Fast guess</span><span class="st">`</span> <span class="sc">+</span> Deliberate</span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>components <span class="ot">&lt;-</span> density_curves <span class="sc">|&gt;</span></span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(rt, <span class="st">`</span><span class="at">Fast guess</span><span class="st">`</span>, Deliberate) <span class="sc">|&gt;</span></span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pivot_longer</span>(<span class="sc">-</span>rt, <span class="at">names_to =</span> <span class="st">"component"</span>, <span class="at">values_to =</span> <span class="st">"density"</span>)</span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(sim_data, <span class="fu">aes</span>(<span class="at">x =</span> rt)) <span class="sc">+</span></span>
+<span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_histogram</span>(<span class="fu">aes</span>(<span class="at">y =</span> <span class="fu">after_stat</span>(density)), <span class="at">binwidth =</span> <span class="dv">25</span>, <span class="at">fill =</span> <span class="st">"grey85"</span>) <span class="sc">+</span></span>
+<span id="cb21-16"><a href="#cb21-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_area</span>(<span class="at">data =</span> components, <span class="fu">aes</span>(<span class="at">y =</span> density, <span class="at">fill =</span> component),</span>
+<span id="cb21-17"><a href="#cb21-17" aria-hidden="true" tabindex="-1"></a>            <span class="at">position =</span> <span class="st">"identity"</span>, <span class="at">alpha =</span> <span class="fl">0.4</span>) <span class="sc">+</span></span>
+<span id="cb21-18"><a href="#cb21-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="at">data =</span> density_curves, <span class="fu">aes</span>(<span class="at">y =</span> Mixture), <span class="at">colour =</span> <span class="st">"black"</span>, <span class="at">linewidth =</span> <span class="fl">0.9</span>) <span class="sc">+</span></span>
+<span id="cb21-19"><a href="#cb21-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_fill_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">`</span><span class="at">Fast guess</span><span class="st">`</span> <span class="ot">=</span> f2s_colors[[<span class="st">"truth"</span>]],</span>
+<span id="cb21-20"><a href="#cb21-20" aria-hidden="true" tabindex="-1"></a>                               <span class="at">Deliberate =</span> f2s_colors[[<span class="st">"post"</span>]])) <span class="sc">+</span></span>
+<span id="cb21-21"><a href="#cb21-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Reaction time (ms)"</span>, <span class="at">y =</span> <span class="st">"Density"</span>, <span class="at">fill =</span> <span class="st">"Weighted component"</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output-display">
+<div id="fig-fitted" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-fitted-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ch15-log-sum-exp_files/figure-html/fig-fitted-1.png" class="img-fluid figure-img" width="672">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-fitted-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+图&nbsp;2: 观测数据的直方图（灰色）、后验均值对应的混合密度（黑线），以及两个加权成分（彩色区域）。
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="找回每个试次的类别" class="level3" data-number="6.2">
+<h3 data-number="6.2" class="anchored" data-anchor-id="找回每个试次的类别"><span class="header-section-number">6.2</span> 找回每个试次的类别</h3>
+<p><code>generated quantities</code> 中的 <code>prob_guess[i]</code> 是第 <span class="math inline">\(i\)</span> 个试次属于“快速猜测”的后验概率。对它取后验均值，就把参数的不确定性也平均了进去：</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>membership <span class="ot">&lt;-</span> fit_lse <span class="sc">|&gt;</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">spread_draws</span>(prob_guess[trial]) <span class="sc">|&gt;</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">prob_guess =</span> <span class="fu">mean</span>(prob_guess), <span class="at">.groups =</span> <span class="st">"drop"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(sim_data, <span class="at">by =</span> <span class="st">"trial"</span>)</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(membership, <span class="fu">aes</span>(<span class="at">x =</span> rt, <span class="at">y =</span> prob_guess,</span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>                       <span class="at">colour =</span> <span class="fu">factor</span>(z_true, <span class="at">labels =</span> <span class="fu">c</span>(<span class="st">"Deliberate"</span>, <span class="st">"Fast guess"</span>)))) <span class="sc">+</span></span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_hline</span>(<span class="at">yintercept =</span> <span class="fl">0.5</span>, <span class="at">colour =</span> <span class="st">"grey70"</span>, <span class="at">linetype =</span> <span class="st">"dashed"</span>) <span class="sc">+</span></span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">alpha =</span> <span class="fl">0.7</span>) <span class="sc">+</span></span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_colour_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="at">Deliberate =</span> f2s_colors[[<span class="st">"post"</span>]], <span class="st">`</span><span class="at">Fast guess</span><span class="st">`</span> <span class="ot">=</span> f2s_colors[[<span class="st">"truth"</span>]])) <span class="sc">+</span></span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Reaction time (ms)"</span>, <span class="at">y =</span> <span class="st">"P(fast guess | data)"</span>, <span class="at">colour =</span> <span class="st">"True class"</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output-display">
+<div id="fig-membership" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-membership-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ch15-log-sum-exp_files/figure-html/fig-membership-1.png" class="img-fluid figure-img" width="672">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-membership-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+图&nbsp;3: 每个试次属于“快速猜测”的后验概率（纵轴）随反应时变化。颜色为真实类别。约 350–450 毫秒之间的试次，分类最不确定。
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>以 0.5 为界做一次分类，与真实类别比较：</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>membership <span class="sc">|&gt;</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">predicted =</span> <span class="fu">if_else</span>(prob_guess <span class="sc">&gt;</span> <span class="fl">0.5</span>, <span class="st">"Fast guess"</span>, <span class="st">"Deliberate"</span>),</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">truth     =</span> <span class="fu">if_else</span>(z_true <span class="sc">==</span> <span class="dv">1</span>, <span class="st">"Fast guess"</span>, <span class="st">"Deliberate"</span>)</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">count</span>(truth, predicted) <span class="sc">|&gt;</span></span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pivot_wider</span>(<span class="at">names_from =</span> predicted, <span class="at">values_from =</span> n, <span class="at">values_fill =</span> <span class="dv">0</span>) <span class="sc">|&gt;</span></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>  knitr<span class="sc">::</span><span class="fu">kable</span>()</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="tbl-classification" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-classification-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+表&nbsp;2: 按后验概率分类与真实类别的交叉表
+</figcaption>
+<div aria-describedby="tbl-classification-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output-display">
+<table class="cell caption-top table table-sm table-striped small">
+<thead>
+<tr class="header">
+<th style="text-align: left;">truth</th>
+<th style="text-align: right;">Deliberate</th>
+<th style="text-align: right;">Fast guess</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Deliberate</td>
+<td style="text-align: right;">246</td>
+<td style="text-align: right;">2</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Fast guess</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">52</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<p>更重要的是，模型并没有被迫对每个试次做出非此即彼的判断。落在两类交界处（本例中约 380–400 毫秒）的试次，后验概率在 0.6–0.8 之间，这个数字诚实地表达了“我们不太确定”。如果后续分析需要排除猜测试次，可以把这个概率作为权重，而不是一刀切地删除。</p>
+</section>
+</section>
+<section id="为什么这样写" class="level2" data-number="7">
+<h2 data-number="7" class="anchored" data-anchor-id="为什么这样写"><span class="header-section-number">7</span> 为什么这样写</h2>
+<section id="为什么概率尺度上的求和会失败" class="level3" data-number="7.1">
+<h3 data-number="7.1" class="anchored" data-anchor-id="为什么概率尺度上的求和会失败"><span class="header-section-number">7.1</span> 为什么概率尺度上的求和会失败？</h3>
+<p><a href="../chapters/ch06-run-diagnose.html">第 6 章</a>提到，Stan 默认在无约束空间的 <span class="math inline">\((-2, 2)\)</span> 区间内随机选取初值。对本章的模型来说，这意味着初始的 <span class="math inline">\(\mu\)</span> 在 0 附近，<span class="math inline">\(\sigma\)</span> 在 1 附近。而数据是几百毫秒的反应时。看看此时一个观测的对数密度有多小：</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">dnorm</span>(<span class="dv">600</span>, <span class="at">mean =</span> <span class="dv">1</span>, <span class="at">sd =</span> <span class="dv">1</span>, <span class="at">log =</span> <span class="cn">TRUE</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; [1] -179401.4</code></pre>
+</div>
+</div>
+<p>大约是 <span class="math inline">\(-180000\)</span>。双精度浮点数能表示的最小正数约为 <span class="math inline">\(e^{-745}\)</span>，所以 <span class="math inline">\(e^{-180000}\)</span> 在计算机中就是 0。两个成分都是 0，相加还是 0，取对数便是 <span class="math inline">\(-\infty\)</span>。</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>a <span class="ot">&lt;-</span> <span class="sc">-</span><span class="dv">800</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>b <span class="ot">&lt;-</span> <span class="sc">-</span><span class="dv">810</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a><span class="fu">c</span>(</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">naive       =</span> <span class="fu">log</span>(<span class="fu">exp</span>(a) <span class="sc">+</span> <span class="fu">exp</span>(b)),</span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">log_sum_exp =</span> <span class="fu">max</span>(a, b) <span class="sc">+</span> <span class="fu">log</span>(<span class="fu">exp</span>(a <span class="sc">-</span> <span class="fu">max</span>(a, b)) <span class="sc">+</span> <span class="fu">exp</span>(b <span class="sc">-</span> <span class="fu">max</span>(a, b)))</span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt;       naive log_sum_exp 
+#&gt;        -Inf        -800</code></pre>
+</div>
+</div>
+<p><code>log_sum_exp</code> 先提出较大的那一项 <span class="math inline">\(m = \max(a, b)\)</span>，括号中至少有一项是 <span class="math inline">\(e^0 = 1\)</span>，结果永远是有限值。在这个例子中，正确答案约为 <span class="math inline">\(-800\)</span>，朴素算法却给出 <span class="math inline">\(-\infty\)</span>。</p>
+<p>这不只是初始化的问题。即使初值合适，采样过程中参数也可能短暂地走到使某个观测远离两个成分的地方；对数密度为 <span class="math inline">\(-\infty\)</span> 时，这一步只能被拒绝。在对数尺度上计算，采样器在任何位置都能得到一个有限的对数密度和一个有意义的梯度，即使那里离后验很远，它也知道该往哪个方向走。</p>
+</section>
+<section id="log_sum_exp-与-log_mix" class="level3" data-number="7.2">
+<h3 data-number="7.2" class="anchored" data-anchor-id="log_sum_exp-与-log_mix"><span class="header-section-number">7.2</span> <code>log_sum_exp</code> 与 <code>log_mix</code></h3>
+<p>两成分混合非常常见，Stan 为它提供了一个更简洁的函数：</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb28"><pre class="sourceCode stan code-with-copy"><code class="sourceCode stan"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="kw">target +=</span> log_mix(lambda,</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>                  normal_lpdf(y[i] | mu[<span class="dv">1</span>], sigma[<span class="dv">1</span>]),</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>                  normal_lpdf(y[i] | mu[<span class="dv">2</span>], sigma[<span class="dv">2</span>]));</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<p>它等价于本章的 <code>log_sum_exp(log(lambda) + ..., log1m(lambda) + ...)</code>。多于两个成分时，把各成分的“对数权重 + 对数密度”放进一个向量，再用 <code>log_sum_exp(vector)</code> 求和即可：</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb29"><pre class="sourceCode stan code-with-copy"><code class="sourceCode stan"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="dt">vector</span>[C] lp;</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (c <span class="cf">in</span> <span class="dv">1</span>:C) {</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>  lp[c] = log(pi[c]) + normal_lpdf(y[i] | mu[c], sigma[c]);</span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a><span class="kw">target +=</span> log_sum_exp(lp);</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<p>这个结构就是潜类别分析、潜剖面分析的核心，只是每个类别的似然换成了对应的分布。</p>
+</section>
+<section id="为什么不能直接写-y-..." class="level3" data-number="7.3">
+<h3 data-number="7.3" class="anchored" data-anchor-id="为什么不能直接写-y-..."><span class="header-section-number">7.3</span> 为什么不能直接写 <code>y ~ ...</code>？</h3>
+<p>混合模型的对数密度是“若干项的 <code>log_sum_exp</code>”，左边没有一个变量“服从”某个现成的分布。这正是<a href="../chapters/ch04-target.html">第 4 章</a>说的：有些模型只能用 <code>target +=</code> 来写。整个系列坚持使用 <code>target +=</code>，到这里得到了回报。</p>
+</section>
+<section id="怎样找回类别" class="level3" data-number="7.4">
+<h3 data-number="7.4" class="anchored" data-anchor-id="怎样找回类别"><span class="header-section-number">7.4</span> 怎样找回类别？</h3>
+<p>边缘化把 <span class="math inline">\(z_i\)</span> 从参数中去掉了，但每次抽样都给出了一组 <span class="math inline">\((\lambda, \mu, \sigma)\)</span>。给定这组参数，由贝叶斯公式：</p>
+<p><span class="math display">\[
+p(z_i = 1 \mid y_i, \lambda, \mu, \sigma) = \frac{e^{a}}{e^{a} + e^{b}} = \exp\big(a - \operatorname{log\_sum\_exp}(a, b)\big)
+\]</span></p>
+<p>这正是 <code>generated quantities</code> 中 <code>prob_guess[i]</code> 的计算方式，同样在对数尺度上完成。把它对所有后验抽样取平均，就得到了同时考虑了参数不确定性的类别概率。</p>
+<p>程序中的 <code>z_draw[i] = bernoulli_rng(prob_guess[i])</code> 则为每次抽样“抽出”一个具体的类别。它相当于把被边缘化掉的 <span class="math inline">\(z_i\)</span> 补抽回来，适合用于需要完整类别抽样的下游分析（比如计算每次抽样中猜测试次的个数）。</p>
+</section>
+<section id="为什么用-ordered" class="level3" data-number="7.5">
+<h3 data-number="7.5" class="anchored" data-anchor-id="为什么用-ordered"><span class="header-section-number">7.5</span> 为什么用 <code>ordered</code>？</h3>
+<p>两个成分在模型中的地位是对称的：交换 <span class="math inline">\((\mu_1, \sigma_1)\)</span> 与 <span class="math inline">\((\mu_2, \sigma_2)\)</span>，同时把 <span class="math inline">\(\lambda\)</span> 换成 <span class="math inline">\(1 - \lambda\)</span>，似然完全不变。这叫作<strong>标签交换</strong>（label switching），与<a href="../chapters/ch13-continuous-latent.html">第 13 章</a>的符号问题如出一辙。<code>ordered[2] mu</code> 规定第一个成分的均值较小，从而固定了标签：成分 1 就是“快”的那一类。练习 3 会看到去掉它的后果。</p>
+</section>
+</section>
+<section id="常见错误" class="level2" data-number="8">
+<h2 data-number="8" class="anchored" data-anchor-id="常见错误"><span class="header-section-number">8</span> 常见错误</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>错误写法</th>
+<th>后果</th>
+<th>正确写法</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>log(lambda * exp(lp1) + (1 - lambda) * exp(lp2))</code></td>
+<td>下溢为 <span class="math inline">\(-\infty\)</span>，初始化失败或采样中频繁拒绝</td>
+<td><code>log_sum_exp(log(lambda) + lp1, log1m(lambda) + lp2)</code> 或 <code>log_mix(lambda, lp1, lp2)</code></td>
+</tr>
+<tr class="even">
+<td>把整个数据集的对数似然先求和，再做一次 <code>log_sum_exp</code></td>
+<td>等于假设所有观测属于同一类</td>
+<td>对<strong>每个观测</strong>分别做 <code>log_sum_exp</code>，再累加</td>
+</tr>
+<tr class="odd">
+<td>混合比例忘记取对数：<code>log_sum_exp(lambda + lp1, ...)</code></td>
+<td>模型错误，不会报错</td>
+<td><code>log(lambda) + lp1</code></td>
+</tr>
+<tr class="even">
+<td>成分参数不加顺序约束</td>
+<td>标签交换，链之间无法混合</td>
+<td><code>ordered</code>，或对某个能区分成分的参数加约束</td>
+</tr>
+<tr class="odd">
+<td>用 <code>prob_guess</code> 的单次抽样做分类</td>
+<td>忽略了参数的不确定性</td>
+<td>对所有抽样取平均后再判断</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="练习" class="level2" data-number="9">
+<h2 data-number="9" class="anchored" data-anchor-id="练习"><span class="header-section-number">9</span> 练习</h2>
+<p><strong>练习 1　改写第 14 章的模型</strong></p>
+<p>用 <code>log_mix</code> 改写<a href="../chapters/ch14-no-discrete-parameters.html">第 14 章</a>的“知道者与猜测者”模型，并在 <code>generated quantities</code> 中计算每名被试是掌握者的后验概率。</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-1-contents" aria-controls="callout-1" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">提示</span>参考答案
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-1" class="callout-1-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p>参考写法保存在 <code>stan/ch15_ex1_guess_logmix.stan</code>：</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb30"><pre class="sourceCode stan code-with-copy"><code class="sourceCode stan"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Chapter 15, Exercise 1: the Chapter 14 knowers-and-guessers model,</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="co">// marginalized on the log scale with log_mix()</span></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a><span class="co">//</span></span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a><span class="co">//   log p(k_i) = log_mix(pi, log Binomial(k_i | M, theta), log Binomial(k_i | M, 0.5))</span></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> {</span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span>&lt;<span class="kw">lower</span>=<span class="dv">1</span>&gt; N;                           <span class="co">// number of participants</span></span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span>&lt;<span class="kw">lower</span>=<span class="dv">1</span>&gt; M;                           <span class="co">// number of questions per participant</span></span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a>  <span class="dt">array</span>[N] <span class="dt">int</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>, <span class="kw">upper</span>=M&gt; k;         <span class="co">// number of correct answers</span></span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a><span class="kw">parameters</span> {</span>
+<span id="cb30-13"><a href="#cb30-13" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>, <span class="kw">upper</span>=<span class="dv">1</span>&gt; pi_know;           <span class="co">// proportion of knowers</span></span>
+<span id="cb30-14"><a href="#cb30-14" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span>&lt;<span class="kw">lower</span>=<span class="fl">0.5</span>, <span class="kw">upper</span>=<span class="dv">1</span>&gt; theta;           <span class="co">// accuracy of knowers</span></span>
+<span id="cb30-15"><a href="#cb30-15" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb30-16"><a href="#cb30-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-17"><a href="#cb30-17" aria-hidden="true" tabindex="-1"></a><span class="kw">model</span> {</span>
+<span id="cb30-18"><a href="#cb30-18" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> beta_lpdf(pi_know | <span class="dv">1</span>, <span class="dv">1</span>);</span>
+<span id="cb30-19"><a href="#cb30-19" aria-hidden="true" tabindex="-1"></a>  <span class="kw">target +=</span> beta_lpdf(theta | <span class="dv">2</span>, <span class="dv">2</span>);</span>
+<span id="cb30-20"><a href="#cb30-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-21"><a href="#cb30-21" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span>:N) {</span>
+<span id="cb30-22"><a href="#cb30-22" aria-hidden="true" tabindex="-1"></a>    <span class="kw">target +=</span> log_mix(pi_know,</span>
+<span id="cb30-23"><a href="#cb30-23" aria-hidden="true" tabindex="-1"></a>                      binomial_lpmf(k[i] | M, theta),</span>
+<span id="cb30-24"><a href="#cb30-24" aria-hidden="true" tabindex="-1"></a>                      binomial_lpmf(k[i] | M, <span class="fl">0.5</span>));</span>
+<span id="cb30-25"><a href="#cb30-25" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb30-26"><a href="#cb30-26" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb30-27"><a href="#cb30-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-28"><a href="#cb30-28" aria-hidden="true" tabindex="-1"></a><span class="kw">generated quantities</span> {</span>
+<span id="cb30-29"><a href="#cb30-29" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[N] prob_knower;                    <span class="co">// P(participant i is a knower | k_i, parameters)</span></span>
+<span id="cb30-30"><a href="#cb30-30" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span>:N) {</span>
+<span id="cb30-31"><a href="#cb30-31" aria-hidden="true" tabindex="-1"></a>    <span class="dt">real</span> lp1 = log(pi_know) + binomial_lpmf(k[i] | M, theta);</span>
+<span id="cb30-32"><a href="#cb30-32" aria-hidden="true" tabindex="-1"></a>    <span class="dt">real</span> lp0 = log1m(pi_know) + binomial_lpmf(k[i] | M, <span class="fl">0.5</span>);</span>
+<span id="cb30-33"><a href="#cb30-33" aria-hidden="true" tabindex="-1"></a>    prob_knower[i] = exp(lp1 - log_sum_exp(lp1, lp0));</span>
+<span id="cb30-34"><a href="#cb30-34" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb30-35"><a href="#cb30-35" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">2026</span>)</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>N_p <span class="ot">&lt;-</span> <span class="dv">100</span></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>M_q <span class="ot">&lt;-</span> <span class="dv">20</span></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>z_p <span class="ot">&lt;-</span> <span class="fu">rbinom</span>(N_p, <span class="dv">1</span>, <span class="fl">0.6</span>)</span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>k_p <span class="ot">&lt;-</span> <span class="fu">rbinom</span>(N_p, M_q, <span class="fu">ifelse</span>(z_p <span class="sc">==</span> <span class="dv">1</span>, <span class="fl">0.85</span>, <span class="fl">0.5</span>))</span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>fit_guess <span class="ot">&lt;-</span> <span class="fu">cmdstan_model</span>(<span class="st">"stan/ch15_ex1_guess_logmix.stan"</span>)<span class="sc">$</span><span class="fu">sample</span>(</span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> <span class="fu">list</span>(<span class="at">N =</span> N_p, <span class="at">M =</span> M_q, <span class="at">k =</span> k_p),</span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">seed =</span> <span class="dv">2026</span>, <span class="at">chains =</span> <span class="dv">4</span>, <span class="at">parallel_chains =</span> <span class="dv">4</span>, <span class="at">refresh =</span> <span class="dv">0</span></span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; Running MCMC with 4 parallel chains...
+#&gt; 
+#&gt; Chain 2 finished in 0.6 seconds.</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; Chain 1 finished in 0.6 seconds.
+#&gt; Chain 3 finished in 0.6 seconds.
+#&gt; Chain 4 finished in 0.6 seconds.
+#&gt; 
+#&gt; All 4 chains finished successfully.
+#&gt; Mean chain execution time: 0.6 seconds.
+#&gt; Total execution time: 0.7 seconds.</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb34"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a>fit_guess<span class="sc">$</span><span class="fu">summary</span>(<span class="fu">c</span>(<span class="st">"pi_know"</span>, <span class="st">"theta"</span>))</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; # A tibble: 2 × 10
+#&gt;   variable  mean median     sd     mad    q5   q95  rhat ess_bulk ess_tail
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 pi_know  0.613  0.614 0.0509 0.0525  0.525 0.694  1.00    2810.    2342.
+#&gt; 2 theta    0.876  0.877 0.0101 0.00984 0.859 0.892  1.00    2967.    2036.</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb36"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a>fit_guess <span class="sc">|&gt;</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">spread_draws</span>(prob_knower[i]) <span class="sc">|&gt;</span></span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">prob_knower =</span> <span class="fu">mean</span>(prob_knower), <span class="at">.groups =</span> <span class="st">"drop"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">k =</span> k_p, <span class="at">z_true =</span> z_p) <span class="sc">|&gt;</span></span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(k) <span class="sc">|&gt;</span></span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">prob_knower =</span> <span class="fu">mean</span>(prob_knower), <span class="at">n =</span> <span class="fu">n</span>(), <span class="at">true_knowers =</span> <span class="fu">sum</span>(z_true))</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; # A tibble: 15 × 4
+#&gt;        k prob_knower     n true_knowers
+#&gt;    &lt;int&gt;       &lt;dbl&gt; &lt;int&gt;        &lt;int&gt;
+#&gt;  1     6 0.000000268     2            0
+#&gt;  2     7 0.00000172      4            0
+#&gt;  3     8 0.0000112       5            0
+#&gt;  4     9 0.0000732       8            0
+#&gt;  5    10 0.000484        6            0
+#&gt;  6    11 0.00321         4            0
+#&gt;  7    12 0.0211          5            0
+#&gt;  8    13 0.125           3            1
+#&gt;  9    14 0.481           2            2
+#&gt; 10    15 0.863           5            4
+#&gt; 11    16 0.978           8            8
+#&gt; 12    17 0.997          17           17
+#&gt; 13    18 1.000          11           11
+#&gt; 14    19 1.000          16           16
+#&gt; 15    20 1.000           4            4</code></pre>
+</div>
+</div>
+<p><span class="math inline">\(\pi\)</span> 和 <span class="math inline">\(\theta\)</span> 的后验与第 14 章完全相同，因为两种写法在数学上等价。不同的是，现在每名被试都有了“是掌握者”的后验概率：答对题数越多，概率越高；答对 13–15 题的被试最不确定，那里正是两类得分分布重叠的地方。</p>
+</div>
+</div>
+</div>
+<p><strong>练习 2　手写 <code>log_sum_exp</code></strong></p>
+<p>在 R 中写一个函数 <code>log_sum_exp(x)</code>，对任意长度的向量都数值稳定，并用 <code>x = c(-1000, -1001, -1002)</code> 检验。</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-2-contents" aria-controls="callout-2" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">提示</span>参考答案
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-2" class="callout-2-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb38"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>log_sum_exp_r <span class="ot">&lt;-</span> <span class="cf">function</span>(x) {</span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>  m <span class="ot">&lt;-</span> <span class="fu">max</span>(x)</span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a>  m <span class="sc">+</span> <span class="fu">log</span>(<span class="fu">sum</span>(<span class="fu">exp</span>(x <span class="sc">-</span> m)))</span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a>x <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="sc">-</span><span class="dv">1000</span>, <span class="sc">-</span><span class="dv">1001</span>, <span class="sc">-</span><span class="dv">1002</span>)</span>
+<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a><span class="fu">c</span>(<span class="at">naive =</span> <span class="fu">log</span>(<span class="fu">sum</span>(<span class="fu">exp</span>(x))), <span class="at">stable =</span> <span class="fu">log_sum_exp_r</span>(x))</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt;     naive    stable 
+#&gt;      -Inf -999.5924</code></pre>
+</div>
+</div>
+<p>稳定版本给出约 <span class="math inline">\(-999.59\)</span>，朴素版本给出 <span class="math inline">\(-\infty\)</span>。如果 <code>x</code> 中有 <code>-Inf</code>（某个成分概率为 0），只要不是全部为 <code>-Inf</code>，这个函数仍然正确。</p>
+</div>
+</div>
+</div>
+<p><strong>练习 3　去掉顺序约束</strong></p>
+<p><code>stan/ch15_ex3_unordered.stan</code> 把 <code>ordered[2] mu</code> 换成了 <code>vector[2] mu</code>。运行它，看看会发生什么。</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-3-contents" aria-controls="callout-3" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">提示</span>参考答案
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-3" class="callout-3-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb40"><pre class="sourceCode stan code-with-copy"><code class="sourceCode stan"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="kw">parameters</span> {</span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">real</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>, <span class="kw">upper</span>=<span class="dv">1</span>&gt; lambda;        <span class="co">// proportion of fast guesses</span></span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>[<span class="dv">2</span>] mu;                         <span class="co">// no ordering: the labels can switch</span></span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>&gt;[<span class="dv">2</span>] sigma;             <span class="co">// SD of each component</span></span>
+<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb41"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a>fit_unordered <span class="ot">&lt;-</span> <span class="fu">cmdstan_model</span>(<span class="st">"stan/ch15_ex3_unordered.stan"</span>)<span class="sc">$</span><span class="fu">sample</span>(</span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> stan_data, <span class="at">seed =</span> <span class="dv">2026</span>, <span class="at">chains =</span> <span class="dv">4</span>, <span class="at">parallel_chains =</span> <span class="dv">4</span>, <span class="at">refresh =</span> <span class="dv">0</span></span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; Running MCMC with 4 parallel chains...
+#&gt; 
+#&gt; Chain 2 finished in 2.7 seconds.
+#&gt; Chain 1 finished in 2.8 seconds.
+#&gt; Chain 3 finished in 3.1 seconds.
+#&gt; Chain 4 finished in 3.5 seconds.
+#&gt; 
+#&gt; All 4 chains finished successfully.
+#&gt; Mean chain execution time: 3.0 seconds.
+#&gt; Total execution time: 3.6 seconds.</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb43"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a>fit_unordered<span class="sc">$</span><span class="fu">summary</span>(<span class="fu">c</span>(<span class="st">"lambda"</span>, <span class="st">"mu"</span>), <span class="st">"mean"</span>, <span class="st">"rhat"</span>, <span class="st">"ess_bulk"</span>)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt; # A tibble: 3 × 4
+#&gt;   variable    mean  rhat ess_bulk
+#&gt;   &lt;chr&gt;      &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 lambda     0.660  1.53     7.21
+#&gt; 2 mu[1]    601.     1.53     7.17
+#&gt; 3 mu[2]    401.     1.53     7.18</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb45"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="co"># mean of mu[1] within each chain</span></span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a>fit_unordered<span class="sc">$</span><span class="fu">draws</span>(<span class="st">"mu[1]"</span>) <span class="sc">|&gt;</span> <span class="fu">apply</span>(<span class="dv">2</span>, mean)</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>#&gt;        1        2        3        4 
+#&gt; 700.6071 700.5445 301.1663 700.6255</code></pre>
+</div>
+</div>
+<p>有的链把“快速猜测”分配给成分 1，有的链分配给成分 2。每条链内部都收敛得很好，但链与链之间互为镜像，合在一起的 Rhat 很大，<span class="math inline">\(\mu_1\)</span> 的均值落在两个成分之间，没有任何意义。这与<a href="../chapters/ch13-continuous-latent.html">第 13 章</a>不加符号约束时的现象完全相同：<strong>对称的模型需要一个约束来打破对称</strong>。</p>
+</div>
+</div>
+</div>
+<p><strong>练习 4　三成分混合</strong></p>
+<p>假设除了快速猜测和认真作答，还有一类“走神”的试次，反应时特别长（约 1500 毫秒）。写出三成分混合模型 <code>model</code> 块的核心部分。</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-4-contents" aria-controls="callout-4" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">提示</span>参考答案
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-4" class="callout-4-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb47"><pre class="sourceCode stan code-with-copy"><code class="sourceCode stan"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="kw">parameters</span> {</span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">simplex</span>[<span class="dv">3</span>] pi;                  <span class="co">// mixing proportions, sum to 1</span></span>
+<span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">ordered</span>[<span class="dv">3</span>] mu;                  <span class="co">// component means, increasing</span></span>
+<span id="cb47-4"><a href="#cb47-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">vector</span>&lt;<span class="kw">lower</span>=<span class="dv">0</span>&gt;[<span class="dv">3</span>] sigma;</span>
+<span id="cb47-5"><a href="#cb47-5" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb47-6"><a href="#cb47-6" aria-hidden="true" tabindex="-1"></a><span class="kw">model</span> {</span>
+<span id="cb47-7"><a href="#cb47-7" aria-hidden="true" tabindex="-1"></a>  <span class="co">// priors on pi, mu, sigma ...</span></span>
+<span id="cb47-8"><a href="#cb47-8" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span>:N) {</span>
+<span id="cb47-9"><a href="#cb47-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">vector</span>[<span class="dv">3</span>] lp;</span>
+<span id="cb47-10"><a href="#cb47-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> (c <span class="cf">in</span> <span class="dv">1</span>:<span class="dv">3</span>) {</span>
+<span id="cb47-11"><a href="#cb47-11" aria-hidden="true" tabindex="-1"></a>      lp[c] = log(pi[c]) + normal_lpdf(y[i] | mu[c], sigma[c]);</span>
+<span id="cb47-12"><a href="#cb47-12" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb47-13"><a href="#cb47-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">target +=</span> log_sum_exp(lp);</span>
+<span id="cb47-14"><a href="#cb47-14" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb47-15"><a href="#cb47-15" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></div>
+<p><code>simplex[3]</code> 保证三个比例为正且和为 1（<a href="../chapters/ch03-types-constraints.html">第 3 章</a>），<code>ordered[3]</code> 固定三个成分的标签。求和从两项变成三项，结构没有任何变化。潜类别分析、潜剖面分析都是这个结构的推广。</p>
+</div>
+</div>
+</div>
+</section>
+<section id="小结" class="level2" data-number="10">
+<h2 data-number="10" class="anchored" data-anchor-id="小结"><span class="header-section-number">10</span> 小结</h2>
+<ul>
+<li>边缘化离散变量，就是对它的每个取值计算“对数权重 + 条件对数密度”，再用 <code>log_sum_exp</code> 在对数尺度上求和。</li>
+<li><code>log_sum_exp</code> 先提出最大项，保证结果有限，避免了概率尺度求和的下溢。两成分时可以用 <code>log_mix</code>。</li>
+<li>类别信息没有丢失：在 <code>generated quantities</code> 中用贝叶斯公式计算每个观测的类别概率，或用 <code>bernoulli_rng</code> 补抽类别。</li>
+<li>对称的混合模型需要约束（如 <code>ordered</code>）来固定标签。</li>
+</ul>
+<blockquote class="blockquote">
+<p><strong>你写下的公式，就是你运行的模型。</strong>从第 1 章的一行异方差，到本章的 <code>log_sum_exp</code>，整个系列都在做同一件事：把公式逐行翻译成 Stan 代码，并且知道每一行为什么这样写。</p>
+</blockquote>
+</section>
+<section id="延伸" class="level2" data-number="11">
+<h2 data-number="11" class="anchored" data-anchor-id="延伸"><span class="header-section-number">11</span> 延伸</h2>
+<ul>
+<li>恭喜你完成了《从公式到 Stan》全部 15 章。回到<a href="../index.html">首页</a>看看学习路线，或者到<a href="../conventions.html">代码约定</a>页面复习本系列的写法约定。</li>
+<li>下一步，可以到 <strong>Stan 模型库</strong>中阅读潜类别分析、潜剖面分析、潜类别回归、占域—检测等完整案例。它们都建立在本章的 <code>log_sum_exp</code> 之上。</li>
+</ul>
+</section>
+<section id="参考资料" class="level2" data-number="12">
+<h2 data-number="12" class="anchored" data-anchor-id="参考资料"><span class="header-section-number">12</span> 参考资料</h2>
+<ul>
+<li>Stan User’s Guide 的 <em>Finite Mixtures</em> 一章讲解了混合模型的写法、<code>log_mix</code> 与标签交换问题；<em>Latent Discrete Parameters</em> 一章给出了更多边缘化的例子 <span class="citation" data-cites="stan2026users">(<a href="#ref-stan2026users" role="doc-biblioref">Stan Development Team, 2026b</a>)</span>。</li>
+<li>Stan Functions Reference 中关于 <code>log_sum_exp</code> 与 <code>log_mix</code> 的说明 <span class="citation" data-cites="stan2026functions">(<a href="#ref-stan2026functions" role="doc-biblioref">Stan Development Team, 2026a</a>)</span>。</li>
+<li><em>Bayesian Data Analysis</em> 第 22 章系统讨论了有限混合模型 <span class="citation" data-cites="gelman2013bda">(<a href="#ref-gelman2013bda" role="doc-biblioref">Gelman 等, 2013</a>)</span>。</li>
+<li><em>Statistical Rethinking</em> 第 12 章用混合模型处理零膨胀等“怪物”数据 <span class="citation" data-cites="mcelreath2020rethinking">(<a href="#ref-mcelreath2020rethinking" role="doc-biblioref">McElreath, 2020</a>)</span>。</li>
+</ul>
+<div id="refs" class="references csl-bib-body hanging-indent" data-entry-spacing="0" data-line-spacing="2" role="list">
+<div id="ref-gelman2013bda" class="csl-entry" role="listitem">
+Gelman, A., Carlin, J. B., Stern, H. S., Dunson, D. B., Vehtari, A., &amp; Rubin, D. B. (2013). <em>Bayesian Data Analysis</em> (3 版). CRC Press.
+</div>
+<div id="ref-mcelreath2020rethinking" class="csl-entry" role="listitem">
+McElreath, R. (2020). <em>Statistical Rethinking: A Bayesian Course with Examples in <span>R</span> and <span>Stan</span></em> (2 版). CRC Press.
+</div>
+<div id="ref-stan2026functions" class="csl-entry" role="listitem">
+Stan Development Team. (2026a). <em>Stan Functions Reference</em> (Version 2.40). <a href="https://mc-stan.org/docs/functions-reference/">https://mc-stan.org/docs/functions-reference/</a>
+</div>
+<div id="ref-stan2026users" class="csl-entry" role="listitem">
+Stan Development Team. (2026b). <em>Stan User’s Guide</em> (Version 2.40). <a href="https://mc-stan.org/docs/stan-users-guide/">https://mc-stan.org/docs/stan-users-guide/</a>
+</div>
+</div>
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    // Ensure there is a toggle, if there isn't float one in the top right
+    if (window.document.querySelector('.quarto-color-scheme-toggle') === null) {
+      const a = window.document.createElement('a');
+      a.classList.add('top-right');
+      a.classList.add('quarto-color-scheme-toggle');
+      a.href = "";
+      a.onclick = function() { try { window.quartoToggleColorScheme(); } catch {} return false; };
+      const i = window.document.createElement("i");
+      i.classList.add('bi');
+      a.appendChild(i);
+      window.document.body.appendChild(a);
+    }
+    setColorSchemeToggle(hasAlternateSentinel())
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "已复制");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "已复制");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/perlatex\.github\.io\/from-formula-to-stan");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="../chapters/ch14-no-discrete-parameters.html" class="pagination-link" aria-label="第 14 章　Stan 为什么不能有离散参数">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">第 14 章　Stan 为什么不能有离散参数</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+  </div>
+</nav>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      &nbsp;
+    </div>   
+    <div class="nav-footer-center">
+<p>正文 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> · 代码 <a href="https://github.com/perlatex/from-formula-to-stan/blob/main/LICENSE">MIT</a></p>
+<div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/perlatex/from-formula-to-stan/blob/main/chapters/ch15-log-sum-exp.qmd" class="toc-action"><i class="bi bi-github"></i>查看代码</a></li><li><a href="https://github.com/perlatex/from-formula-to-stan/issues/new" class="toc-action"><i class="bi empty"></i>反馈问题</a></li></ul></div></div>
+    <div class="nav-footer-right">
+      &nbsp;
+    </div>
+  </div>
+</footer>
+
+
+
+
+</body></html>
