@@ -1,0 +1,45 @@
+---
+title: "代码约定"
+description: "本教程与 Stan 模型库共同遵循的写法约定，以及每条约定背后的理由。"
+number-sections: false
+---
+
+本页集中说明本教程（以及 Stan 模型库）统一采用的写法。在任何一章或模型库的任何一个项目里看到某种写法，都可以回到这里查到原因。
+
+## Stan 端
+
+| 约定 | 写法 | 理由 | 详见 |
+|---|---|---|---|
+| 用 `target +=` 写概率结构 | `target += normal_lpdf(y | mu, sigma);` | 明确写出 Stan 累加的是对数密度 | 第 4 章 |
+| 似然优先向量化 | `normal_lpdf(y | alpha + beta * x, sigma)` | 与公式同构，自动微分更高效 | 第 5 章 |
+| 约束写在声明里 | `real<lower=0> sigma;` | 让 Stan 自动变换到无约束空间 | 第 3、5 章 |
+| 先验全部显式写出 | 每个参数一行先验 | 先验是假设，必须可见、可检验 | 第 5、8 章 |
+| 现代数组语法 | `array[N] int y;` | 与当前 Stan 版本一致 | 第 3 章 |
+| 层级模型用索引映射 | `alpha[group[i]]` | 严格区分观测索引 $i$ 与组索引 $j$ | 第 10 章 |
+| 层级模型默认非中心化 | `alpha = mu + tau * alpha_raw;` | 消除漏斗几何 | 第 12 章 |
+| 离散潜变量边缘化 | `log_sum_exp(...)` | HMC 需要梯度，不能有离散参数 | 第 14、15 章 |
+| 衍生量放入 `generated quantities` | `y_rep`、`log_lik` | 每次抽样只算一次，不影响推断 | 第 5 章 |
+
+## 命名
+
+名字尽量与公式卡片中的符号一致，让读者对照公式就能读懂代码。
+
+| 类别 | 约定 | 例子 |
+|---|---|---|
+| 规模 | 大写单字母 | `N`（观测数）、`K`（预测变量数）、`J`（组数） |
+| 数据 | 与公式符号一致 | `y`、`x`、`X`（设计矩阵） |
+| 组索引 | 用含义命名 | `group`、`subject` |
+| 参数 | 希腊字母拼写 | `alpha`、`beta`、`sigma`、`tau` |
+| 非中心化的原始参数 | `_raw` 后缀 | `alpha_raw` |
+| 中心化的量 | `_c` 后缀 | `x_c`、`alpha_c` |
+| 生成量 | 描述性 snake_case | `y_rep`、`log_lik`、`mu` |
+| 模拟真值（R 端） | `_true` 后缀 | `alpha_true`、`sigma_true` |
+| R 端对象 | snake_case | `sim_data`、`stan_data`、`fit_linear` |
+
+## R 端
+
+- 数据处理用 **tidyverse**，模型编译与采样用 **cmdstanr**，后验汇总用 **posterior**，后验抽样整理与绘图用 **tidybayes**。
+- 每章开头加载宏包，并 `source("R/theme.R")` 与 `source("R/utils.R")`。
+- Stan 程序保存为独立文件 `stan/chXX_*.stan`，页面通过 `show_stan()` 读取显示，cmdstanr 编译同一个文件。
+- 模拟数据与采样都固定随机种子。
+- 图表标签使用英文，代码注释使用英文，正文使用中文。

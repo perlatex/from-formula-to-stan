@@ -1,0 +1,462 @@
+---
+title: "第 10 章　层级模型：部分池化"
+description: "完全合并、完全分开、部分池化，三者差在哪里？为什么小样本的组会被“拉向”总体均值？观测索引与组索引怎样对应？"
+---
+
+研究数据常常有分组结构：学生嵌套在学校里，试次嵌套在被试里，测量嵌套在地点里。面对分组数据，有两种朴素的做法：要么把所有组**合并**成一组，要么把每组**分开**单独分析。
+
+层级模型提供了第三条路：**部分池化**。它让每个组既保留自己的特点，又向其他组“借力”。本章用 Stan 把三种做法并排实现，看它们的差别从何而来。
+
+## 本章要回答的问题
+
+::: {.chapter-questions}
+1. 完全合并、完全分开、部分池化，三者差在哪里？
+2. 为什么部分池化会把小样本的组“拉向”总体均值？拉多少由什么决定？
+3. 观测索引 `i` 与组索引 `j` 应该怎样在 Stan 中建立映射？
+:::
+
+## 公式卡片
+
+::: {.formula-card}
+[三种池化方式]{.card-title}
+
+**完全合并**：所有学校共享一个均值
+
+$$
+y_i \sim \operatorname{Normal}(\mu,\ \sigma)
+$$
+
+**完全分开**：每所学校一个均值，彼此无关
+
+$$
+y_i \sim \operatorname{Normal}(\alpha_{j[i]},\ \sigma), \qquad \alpha_j \sim \operatorname{Normal}(70,\ 50)
+$$
+
+**部分池化**：每所学校一个均值，这些均值来自一个共同的分布，而这个分布本身也要估计
+
+$$
+\begin{aligned}
+y_i &\sim \operatorname{Normal}(\alpha_{j[i]},\ \sigma) \\
+\alpha_j &\sim \operatorname{Normal}(\mu,\ \tau) \\
+\mu &\sim \operatorname{Normal}(70,\ 20), \quad \tau \sim \operatorname{Exponential}(0.1), \quad \sigma \sim \operatorname{Exponential}(0.1)
+\end{aligned}
+$$
+:::
+
+记号 $j[i]$ 读作“观测 $i$ 所属的组”。比较三个模型：完全分开时，$\alpha_j$ 的先验是**固定的**、很宽的 $\operatorname{Normal}(70, 50)$；部分池化时，$\alpha_j$ 的先验 $\operatorname{Normal}(\mu, \tau)$ 中的 $\mu$ 和 $\tau$ **从数据中学习**。层级模型的全部奥妙，就在这一点上。
+
+## 模拟数据
+
+```{r}
+#| label: setup
+library(tidyverse)
+library(cmdstanr)
+library(posterior)
+library(tidybayes)
+
+source("R/theme.R")
+source("R/utils.R")
+```
+
+研究情境：12 所学校参加同一次数学测验。各校参加测验的学生人数差别很大，从 2 人到 40 人不等。
+
+```{r}
+#| label: simulate
+set.seed(2026)
+
+J          <- 12
+n_j        <- c(2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30, 40)   # students per school
+mu_true    <- 70    # population mean of school means
+tau_true   <- 10    # SD between schools
+sigma_true <- 10    # SD between students within a school
+
+alpha_true <- rnorm(J, mu_true, tau_true)                    # true school means
+
+sim_data <- tibble(school = rep(1:J, times = n_j)) |>
+  mutate(score = rnorm(n(), alpha_true[school], sigma_true))
+
+school_summary <- sim_data |>
+  group_by(school) |>
+  summarise(n = n(), mean_score = mean(score)) |>
+  mutate(alpha_true = alpha_true)
+
+school_summary
+```
+
+数据是“长格式”：每行一名学生，`school` 列记录他属于哪所学校。
+
+## Stan 代码
+
+### 观测索引与组索引
+
+三个模型共享同一种数据结构：
+
+```{r}
+#| echo: false
+#| class-output: stan
+#| comment: ""
+show_stan("stan/ch10_hierarchical.stan", "data")
+```
+
+这里有两套下标：
+
+| 下标 | 范围 | 指什么 | 对应的变量 |
+|---|---|---|---|
+| $i$ | $1, \dots, N$ | 学生（观测） | `y[i]`、`school[i]` |
+| $j$ | $1, \dots, J$ | 学校（组） | `alpha[j]` |
+
+`school` 是一个长度为 $N$ 的整数数组，它就是公式中的 $j[i]$：把每个观测映射到它所属的组。约束 `<lower=1, upper=J>` 保证每个编号都是合法的组号。
+
+### 三个模型
+
+**完全分开**：
+
+```{r}
+#| echo: false
+#| class-output: stan
+#| comment: ""
+show_stan("stan/ch10_unpooled.stan", "model")
+```
+
+**部分池化**：
+
+```{r}
+#| echo: false
+#| class-output: stan
+#| comment: ""
+show_stan("stan/ch10_hierarchical.stan")
+```
+
+部分池化模型与完全分开模型的差别只有两处：`parameters` 中多了 `mu` 和 `tau`，`alpha` 的先验从固定的 `normal_lpdf(alpha | 70, 50)` 变成了 `normal_lpdf(alpha | mu, tau)`。完全合并模型见 `stan/ch10_pooled.stan`。
+
+注意似然中的 `alpha[school]`：用一个整数数组去索引向量，得到的是一个长度为 $N$ 的向量，第 $i$ 个元素就是 `alpha[school[i]]`。这一行等价于：
+
+```stan
+for (i in 1:N) {
+  target += normal_lpdf(y[i] | alpha[school[i]], sigma);
+}
+```
+
+## R 端运行
+
+```{r}
+#| label: fit
+stan_data <- list(
+  N      = nrow(sim_data),
+  J      = J,
+  school = sim_data$school,
+  y      = sim_data$score
+)
+
+fit_pooled <- cmdstan_model("stan/ch10_pooled.stan")$sample(
+  data = stan_data[c("N", "y")], seed = 2026, chains = 4, parallel_chains = 4, refresh = 0
+)
+fit_unpooled <- cmdstan_model("stan/ch10_unpooled.stan")$sample(
+  data = stan_data, seed = 2026, chains = 4, parallel_chains = 4, refresh = 0
+)
+fit_hier <- cmdstan_model("stan/ch10_hierarchical.stan")$sample(
+  data = stan_data, seed = 2026, chains = 4, parallel_chains = 4, refresh = 0
+)
+
+fit_hier$diagnostic_summary()
+```
+
+::: {.callout-note}
+本章的层级模型采用最直接的“中心化”写法 $\alpha_j \sim \operatorname{Normal}(\mu, \tau)$。在这份数据上它运行顺利；但如果你在本地重新运行时看到少量发散转移的警告，不必惊慌，那正是[第 11 章](ch11-funnel.qmd)要讨论的问题，[第 12 章](ch12-non-centered.qmd)会给出解决办法。
+:::
+
+## 后验整理与可视化
+
+### 总体参数
+
+```{r}
+#| label: summary-hyper
+fit_hier$summary(c("mu", "tau", "sigma"))
+```
+
+$\tau$ 是学校之间的标准差，$\sigma$ 是同一学校内学生之间的标准差。两者都被找回了。
+
+### 三种做法的学校均值
+
+```{r}
+#| label: estimates
+pooled_mu <- fit_pooled$summary("mu", "mean")$mean
+
+school_estimates <- bind_rows(
+  fit_unpooled |>
+    spread_draws(alpha[school]) |>
+    summarise(estimate = mean(alpha), .groups = "drop") |>
+    mutate(method = "No pooling"),
+  fit_hier |>
+    spread_draws(alpha[school]) |>
+    summarise(estimate = mean(alpha), .groups = "drop") |>
+    mutate(method = "Partial pooling")
+) |>
+  left_join(school_summary, by = "school")
+```
+
+```{r}
+#| label: fig-shrinkage
+#| fig-cap: "从“完全分开”（左）到“部分池化”（右），每所学校的估计都向总体均值移动。点的大小表示学生人数：人数越少，移动越多。虚线是完全合并的估计。"
+#| fig-height: 5
+school_estimates |>
+  mutate(method = factor(method, levels = c("No pooling", "Partial pooling"))) |>
+  ggplot(aes(x = method, y = estimate, group = school)) +
+  geom_hline(yintercept = pooled_mu, linetype = "dashed", colour = "grey50") +
+  geom_line(colour = "grey60") +
+  geom_point(aes(size = n), colour = f2s_colors[["post"]], alpha = 0.8) +
+  scale_size_area(max_size = 6) +
+  labs(x = NULL, y = "Estimated school mean", size = "Students")
+```
+
+### 哪种做法估计得更准？
+
+模拟数据的好处是知道真值。先在这一份数据上比较三种做法的估计误差（均方根误差，RMSE）：
+
+```{r}
+#| label: tbl-rmse
+#| tbl-cap: "本章这一份数据上，三种做法估计学校均值的 RMSE"
+rmse_table <- function(est) {
+  est |>
+    mutate(size_group = if_else(n <= 6, "Small (n <= 6)", "Large (n > 6)")) |>
+    group_by(method, size_group) |>
+    summarise(rmse = sqrt(mean((estimate - alpha_true)^2)), .groups = "drop") |>
+    pivot_wider(names_from = size_group, values_from = rmse) |>
+    select(method, `Small (n <= 6)`, `Large (n > 6)`)
+}
+
+bind_rows(
+  school_summary |> transmute(school, n, alpha_true, estimate = pooled_mu, method = "Complete pooling"),
+  school_estimates |> select(school, n, alpha_true, estimate, method)
+) |>
+  rmse_table() |>
+  knitr::kable(digits = 2)
+```
+
+完全合并忽略了学校之间真实存在的差异，误差最大。有意思的是，在这一份数据上，部分池化的误差反而比完全分开略大：这几所小学校的样本均值恰好离各自的真值很近，向总体均值收缩反而“拉远”了。在一份只有 12 所学校的数据上，这种比较受偶然性的影响很大，[第 9 章](ch09-recover-parameters.qmd)已经说明过这一点。要看清两者的系统差别，需要重复模拟：
+
+```{r}
+#| label: rmse-repeated
+mod_unpooled <- cmdstan_model("stan/ch10_unpooled.stan")
+mod_hier     <- cmdstan_model("stan/ch10_hierarchical.stan")
+
+one_replicate <- function(k) {
+  set.seed(3000 + k)
+  alpha_k <- rnorm(J, mu_true, tau_true)
+  d <- tibble(school = rep(1:J, times = n_j)) |>
+    mutate(score = rnorm(n(), alpha_k[school], sigma_true))
+  dl <- list(N = nrow(d), J = J, school = d$school, y = d$score)
+
+  posterior_means <- function(mod) {
+    mod$sample(data = dl, seed = k, chains = 2, iter_warmup = 500, iter_sampling = 500,
+               refresh = 0, show_messages = FALSE, show_exceptions = FALSE)$
+      draws("alpha", format = "matrix") |>
+      colMeans()
+  }
+
+  tibble(school = 1:J, n = n_j, alpha_true = alpha_k) |>
+    mutate(
+      `No pooling`      = posterior_means(mod_unpooled),
+      `Partial pooling` = posterior_means(mod_hier)
+    ) |>
+    pivot_longer(c(`No pooling`, `Partial pooling`), names_to = "method", values_to = "estimate")
+}
+
+repeated <- map(1:100, one_replicate) |> list_rbind()
+```
+
+```{r}
+#| label: tbl-rmse-repeated
+#| tbl-cap: "重复模拟 100 次后的平均 RMSE"
+repeated |>
+  rmse_table() |>
+  knitr::kable(digits = 2)
+```
+
+平均而言，部分池化的误差小于完全分开，而且改进主要集中在**小学校**：它们自己的数据最少，从其他学校“借来”的信息最有价值。大学校的数据已经足够多，两种做法相差无几。部分池化并不保证在每一份数据、每一所学校上都更好，但它在**平均意义上**更准确，这正是“借力”的含义。
+
+## 为什么这样写
+
+### 三种做法是同一个模型的三个极端
+
+把部分池化模型中的 $\tau$ 推向两个极端：
+
+- $\tau \to 0$：所有 $\alpha_j$ 被压到同一个值 $\mu$，模型退化为**完全合并**；
+- $\tau \to \infty$：$\alpha_j$ 的先验变得无限宽，各组之间不再相互约束，模型退化为**完全分开**。
+
+完全合并和完全分开，都是对 $\tau$ 做了一个**事先固定的、极端的假设**。部分池化则把 $\tau$ 当作未知参数，让数据来决定各组之间到底有多相似。
+
+### 为什么小学校被拉得更多？
+
+在 $\mu$、$\tau$、$\sigma$ 已知的情况下，学校 $j$ 均值的后验期望是两个量的加权平均：
+
+$$
+\mathbb{E}[\alpha_j \mid y] \approx \frac{\dfrac{n_j}{\sigma^2}\, \bar{y}_j + \dfrac{1}{\tau^2}\, \mu}{\dfrac{n_j}{\sigma^2} + \dfrac{1}{\tau^2}}
+= (1 - B_j)\, \bar{y}_j + B_j\, \mu,
+\qquad
+B_j = \frac{\sigma^2 / n_j}{\sigma^2 / n_j + \tau^2}
+$$
+
+权重就是各自的**精度**（方差的倒数）：
+
+- 学校自己的样本均值 $\bar{y}_j$，精度是 $n_j / \sigma^2$，学生越多越精确；
+- 总体均值 $\mu$，作为“先验”的精度是 $1/\tau^2$。
+
+$B_j$ 叫作**收缩因子**。学生越少，$\sigma^2/n_j$ 越大，$B_j$ 越接近 1，估计越靠近总体均值。用后验均值把这个公式算一遍，与实际的收缩比较：
+
+```{r}
+#| label: fig-shrink-factor
+#| fig-cap: "每所学校的实际收缩比例（点）与公式给出的收缩因子 B_j（曲线）。学生越少，收缩越多。"
+#| fig-height: 3.5
+post_means <- fit_hier$summary(c("mu", "tau", "sigma"), "mean") |>
+  deframe()
+
+shrink_data <- school_estimates |>
+  filter(method == "Partial pooling") |>
+  mutate(observed_shrinkage = (mean_score - estimate) / (mean_score - post_means[["mu"]]))
+
+ggplot(shrink_data, aes(x = n, y = observed_shrinkage)) +
+  stat_function(
+    fun = \(n) (post_means[["sigma"]]^2 / n) /
+      (post_means[["sigma"]]^2 / n + post_means[["tau"]]^2),
+    colour = f2s_colors[["truth"]], linewidth = 0.8
+  ) +
+  geom_point(colour = f2s_colors[["post"]], size = 2.5) +
+  labs(x = "Students in the school", y = "Shrinkage toward mu")
+```
+
+点与曲线并不完全重合，因为公式把 $\mu$、$\tau$、$\sigma$ 当作已知，而模型中它们本身也有不确定性；但趋势完全一致。（某所学校的样本均值恰好接近 $\mu$ 时，这个比例的分母很小，计算出的数值会不稳定。）
+
+这个公式揭示了部分池化的本质：**它不是一种调参技巧，而是“各组相似但不相同”这一假设在概率上的自然结果。**
+
+### 为什么用索引映射，而不是宽格式？
+
+另一种组织数据的方式是“宽格式”：每所学校一列。但各校人数不同，宽格式需要填充缺失值，Stan 处理起来很麻烦。长格式加索引映射有三个好处：
+
+- 每组人数可以不同，甚至可以有只有一个观测的组；
+- 数据结构与 tidyverse 的整洁数据一致，R 端准备数据很自然；
+- 推广到多层（学生 → 班级 → 学校）或交叉结构（被试 × 条目）时，只需要增加更多的索引数组。
+
+关键是严格区分两套下标：**与观测一一对应的量用 $i$ 索引（长度 $N$），与组一一对应的量用 $j$ 索引（长度 $J$），二者之间只通过 `school[i]` 这样的映射数组连接。**
+
+### 为什么新学校的预测放在 `generated quantities`？
+
+`alpha_new = normal_rng(mu, tau)` 回答的问题是：一所**没有参加测验**的新学校，均值可能是多少？它不参与推断，只是用 $\mu$、$\tau$ 的后验做预测，所以放在 `generated quantities`。这个量只有在层级模型中才有意义：完全分开模型对新学校一无所知，完全合并模型则认为新学校与总体完全相同。
+
+## 常见错误
+
+| 错误写法 | 后果 | 正确写法 |
+|---|---|---|
+| 组编号从 0 开始 | 运行时报错：违反 `<lower=1>` | R 端用 `as.integer(factor(...))` 生成 1 到 $J$ 的编号 |
+| 组编号不连续（如 1, 2, 5, 7） | 多出没有数据的组，或越界 | 重新编号为连续整数 |
+| 混淆下标：`alpha[i]` | 用观测下标索引组参数，越界或含义错误 | `alpha[school[i]]` 或 `alpha[school]` |
+| `real tau;` 漏写约束 | 标准差可能取负值 | `real<lower=0> tau;` |
+| 认为部分池化“把数据改了” | 误解：观测数据没有变，变的是对各组均值的估计 | 理解为“借用其他组的信息” |
+| 组数很少（如 3 组）时随意设置 $\tau$ 的先验 | $\tau$ 的后验强烈依赖先验 | 认真选择 $\tau$ 的先验，并做敏感性分析 |
+
+## 练习
+
+**练习 1　预测一所新学校**
+
+用 `alpha_new` 的后验，给出一所新学校平均分的 90% 预测区间。它为什么比 $\mu$ 的区间宽得多？
+
+::: {.callout-tip collapse="true"}
+## 参考答案
+
+```{r}
+#| label: ex1
+fit_hier$summary(c("mu", "alpha_new"), "mean", ~ quantile(.x, c(0.05, 0.95)))
+```
+
+$\mu$ 的区间只反映“总体均值估计得有多准”；`alpha_new` 的区间还要加上“学校之间本来就有差异”这一层不确定性，其宽度主要由 $\tau$ 决定。前者回答“学校的平均水平是多少”，后者回答“下一所学校会是多少”。
+:::
+
+**练习 2　把 $\tau$ 固定下来**
+
+修改部分池化模型，把 $\tau$ 作为数据传入并固定为 0.1 和 1000，分别拟合。结果分别接近哪种做法？
+
+::: {.callout-tip collapse="true"}
+## 参考答案
+
+在 `data` 块中加入 `real<lower=0> tau;`，并从 `parameters` 块和先验中删去 `tau`。
+
+- $\tau = 0.1$：各校均值几乎被压到同一个值，结果接近**完全合并**；
+- $\tau = 1000$：先验对各校均值几乎没有约束，结果接近**完全分开**。
+
+这验证了“三种做法是同一个模型的三个极端”。部分池化把 $\tau$ 交给数据决定，本章的估计值约为 `r round(post_means[["tau"]], 1)`，介于两个极端之间。
+:::
+
+**练习 3　加入学生层面的预测变量**
+
+假设每名学生还有每周学习时长 `hours`。写出“学校截距不同、学习时长斜率相同”的模型。
+
+::: {.callout-tip collapse="true"}
+## 参考答案
+
+公式：
+
+$$
+y_i \sim \operatorname{Normal}(\alpha_{j[i]} + \beta\, x_i,\ \sigma), \qquad \alpha_j \sim \operatorname{Normal}(\mu, \tau)
+$$
+
+Stan 程序中，`data` 块加 `vector[N] x;`，`parameters` 块加 `real beta;`，似然改为：
+
+```stan
+target += normal_lpdf(y | alpha[school] + beta * x, sigma);
+```
+
+再给 `beta` 加一行先验即可。如果希望斜率也因学校而异，就让 `beta` 也变成长度为 $J$ 的向量并有自己的层级分布；此时截距与斜率之间的相关性通常也需要建模，会用到[第 3 章](ch03-types-constraints.qmd)提到的 `cholesky_factor_corr` 类型。
+:::
+
+**练习 4　组越多，$\tau$ 估计越准**
+
+保持每校人数分布不变，把学校数从 12 增加到 48（每种人数各 4 所学校），$\tau$ 的后验会怎样变化？
+
+::: {.callout-tip collapse="true"}
+## 参考答案
+
+```{r}
+#| label: ex4
+set.seed(2027)
+J_big <- 48
+n_big <- rep(n_j, times = 4)
+alpha_big <- rnorm(J_big, mu_true, tau_true)
+
+big_data <- tibble(school = rep(1:J_big, times = n_big)) |>
+  mutate(score = rnorm(n(), alpha_big[school], sigma_true))
+
+fit_big <- cmdstan_model("stan/ch10_hierarchical.stan")$sample(
+  data = list(N = nrow(big_data), J = J_big, school = big_data$school, y = big_data$score),
+  seed = 2026, chains = 4, parallel_chains = 4, refresh = 0
+)
+
+bind_rows(
+  fit_hier$summary("tau", "mean", "sd", ~ quantile(.x, c(0.05, 0.95))) |> mutate(J = 12),
+  fit_big$summary("tau", "mean", "sd", ~ quantile(.x, c(0.05, 0.95))) |> mutate(J = 48)
+)
+```
+
+$\tau$ 描述的是**学校之间**的差异，提供信息的是学校的个数，而不是学生的总数。学校从 12 所增加到 48 所，$\tau$ 的后验明显变窄。这也提醒我们：组数很少时，组间标准差很难估计准确，先验的作用就更大。
+:::
+
+## 小结
+
+- 完全合并假设 $\tau = 0$，完全分开假设 $\tau = \infty$，部分池化让数据决定 $\tau$。
+- 部分池化的估计是“组内均值”与“总体均值”的精度加权平均：组越小，越向总体均值收缩。
+- 数据用长格式，严格区分观测下标 $i$ 与组下标 $j$，用映射数组 `school[i]` 连接两者；Stan 中 `alpha[school]` 一行完成所有观测的索引。
+- 层级模型能对“新的组”做预测，这是另外两种做法做不到的。
+
+## 延伸
+
+- 下一章：[第 11 章　漏斗与发散](ch11-funnel.qmd)。当组内数据很少、组间差异很小时，本章的写法会让采样器陷入困境。
+- 层级模型是 Stan 模型库中许多真实案例的基础，那里有更复杂的多层与交叉结构。
+
+## 参考资料
+
+- *Bayesian Data Analysis* 第 5 章是层级模型的经典讲解，包括收缩的推导与“八所学校”的例子 [@gelman2013bda]。
+- *Statistical Rethinking* 第 13 章用“有记忆的模型”讲解部分池化，并以模拟比较了三种做法的估计误差 [@mcelreath2020rethinking]。
+- Stan User's Guide 的 *Regression Models* 一章中关于层级回归（hierarchical regression）的部分 [@stan2026users]。
+- 层级模型中组间标准差的先验选择见 @gelman2006prior。
+
+::: {#refs}
+:::

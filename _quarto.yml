@@ -1,0 +1,95 @@
+project:
+  type: website
+  output-dir: _site
+  execute-dir: project
+
+lang: zh
+
+website:
+  title: "从公式到 Stan"
+  description: "把数学公式逐行翻译成 Stan 代码，并讲清每一处写法背后的为什么"
+  site-url: https://perlatex.github.io/from-formula-to-stan
+  repo-url: https://github.com/perlatex/from-formula-to-stan
+  repo-actions: [source, issue]
+  page-navigation: true
+  search: true
+  navbar:
+    left:
+      - href: index.qmd
+        text: 首页
+      - href: conventions.qmd
+        text: 代码约定
+    right:
+      - icon: github
+        href: https://github.com/perlatex/from-formula-to-stan
+  sidebar:
+    style: docked
+    collapse-level: 2
+    contents:
+      - index.qmd
+      - conventions.qmd
+      - section: "第一单元 · 入门"
+        contents:
+          - chapters/ch01-why-stan.qmd
+          - chapters/ch02-skeleton.qmd
+          - chapters/ch03-types-constraints.qmd
+          - chapters/ch04-target.qmd
+      - section: "第二单元 · 回归"
+        contents:
+          - chapters/ch05-linear-regression.qmd
+          - chapters/ch06-run-diagnose.qmd
+          - chapters/ch07-logistic.qmd
+          - chapters/ch08-priors.qmd
+          - chapters/ch09-recover-parameters.qmd
+      - section: "第三单元 · 层级"
+        contents:
+          - chapters/ch10-hierarchical.qmd
+          - chapters/ch11-funnel.qmd
+          - chapters/ch12-non-centered.qmd
+      - section: "第四单元 · 潜变量"
+        contents:
+          - chapters/ch13-continuous-latent.qmd
+          - chapters/ch14-no-discrete-parameters.qmd
+          - chapters/ch15-log-sum-exp.qmd
+  page-footer:
+    center: "正文 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) · 代码 [MIT](https://github.com/perlatex/from-formula-to-stan/blob/main/LICENSE) "
+
+format:
+  html:
+    theme:
+      light: cosmo
+      dark: darkly
+    css: styles.css
+    toc: true
+    toc-depth: 3
+    toc-title: 本页目录
+    number-sections: true
+    code-copy: true
+    code-overflow: wrap
+    code-fold: false
+    code-line-numbers: false
+    highlight-style: github
+    fig-width: 7
+    fig-height: 4.5
+    fig-align: center
+
+crossref:
+  fig-prefix: 图
+  tbl-prefix: 表
+  eq-prefix: 式
+
+bibliography: references.bib
+csl: apa.csl
+link-citations: true
+
+execute:
+  eval: true
+  echo: true
+  warning: false
+  message: false
+  freeze: auto
+
+knitr:
+  opts_chunk:
+    comment: "#>"
+    collapse: false

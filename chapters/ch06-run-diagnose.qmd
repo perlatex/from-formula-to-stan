@@ -1,0 +1,475 @@
+---
+title: "第 6 章　运行、诊断与后验整理"
+description: "cmdstanr 从编译到采样做了什么；Rhat、ESS、树深与 E-BFMI 在提示什么；怎样用 posterior 和 tidybayes 整理后验。"
+---
+
+模型写好之后，还有三件事要做：**运行**它，**检查**运行结果是否可信，再把后验抽样**整理**成能回答研究问题的形式。
+
+这一章是本系列的“工具章”。前面几章已经在用 `$sample()`、`$summary()`、`spread_draws()`，这里把它们系统地讲清楚，并且刻意制造两次“失败”的运行，看诊断指标如何发出警报。
+
+## 本章要回答的问题
+
+::: {.chapter-questions}
+1. cmdstanr 从编译到采样，每一步在做什么？
+2. Rhat、ESS、树深、E-BFMI、发散转移分别在提示什么？出问题时该怎么办？
+3. 拿到 draws 之后，怎样用 posterior 与 tidybayes 整理、汇总和画图？
+:::
+
+## 公式卡片
+
+::: {.formula-card}
+[施肥量与植株高度]{.card-title}
+
+$$
+\begin{aligned}
+y_i &\sim \operatorname{Normal}(\alpha + \beta\, x_i^{c},\ \sigma), \qquad x_i^{c} = x_i - \bar{x} \\
+\alpha &\sim \operatorname{Normal}(30,\ 10) \\
+\beta &\sim \operatorname{Normal}(0,\ 5) \\
+\sigma &\sim \operatorname{Exponential}(0.2)
+\end{aligned}
+$$
+:::
+
+模型本身很简单，本章的重点在模型之外。
+
+## 模拟数据
+
+```{r}
+#| label: setup
+library(tidyverse)
+library(cmdstanr)
+library(posterior)
+library(tidybayes)
+
+source("R/theme.R")
+source("R/utils.R")
+```
+
+研究情境：60 株植物接受不同剂量的肥料（0–10 克），测量生长期结束时的高度（厘米）。
+
+```{r}
+#| label: simulate
+set.seed(2026)
+
+N          <- 60
+alpha_true <- 30     # height at the average dose (cm)
+beta_true  <- 1.5    # height gain per gram (cm)
+sigma_true <- 4      # residual SD (cm)
+
+sim_data <- tibble(
+  dose   = runif(N, 0, 10),
+  height = alpha_true + beta_true * (dose - 5) + rnorm(N, 0, sigma_true)
+)
+
+stan_data <- list(
+  N = nrow(sim_data),
+  x = sim_data$dose - mean(sim_data$dose),
+  y = sim_data$height
+)
+```
+
+## Stan 代码
+
+```{r}
+#| echo: false
+#| class-output: stan
+#| comment: ""
+show_stan("stan/ch06_growth.stan")
+```
+
+## R 端运行
+
+### 第一步：编译
+
+```{r}
+#| label: compile
+mod_growth <- cmdstan_model("stan/ch06_growth.stan")
+mod_growth$exe_file()
+```
+
+`cmdstan_model()` 做了两件事：先把 Stan 程序翻译成 C++ 代码，再把 C++ 代码编译成一个**可执行文件**，放在 `.stan` 文件旁边。之后只要 `.stan` 文件没有修改，再次调用 `cmdstan_model()` 就会直接使用这个可执行文件，不必重新编译。
+
+### 第二步：采样
+
+```{r}
+#| label: sample
+fit_growth <- mod_growth$sample(
+  data            = stan_data,
+  seed            = 2026,
+  chains          = 4,
+  parallel_chains = 4,
+  iter_warmup     = 1000,
+  iter_sampling   = 1000,
+  refresh         = 0
+)
+```
+
+`$sample()` 的常用参数：
+
+| 参数 | 含义 | 默认值 |
+|---|---|---|
+| `data` | 数据列表，名字与 `data` 块对应 | — |
+| `seed` | 随机种子，保证结果可复现 | 随机 |
+| `chains` | 马尔可夫链的条数 | 4 |
+| `parallel_chains` | 同时运行的链数 | 1 |
+| `iter_warmup` | 每条链的预热迭代数 | 1000 |
+| `iter_sampling` | 每条链保存的抽样数 | 1000 |
+| `adapt_delta` | 目标接受率，调高可减少发散（步长变小） | 0.8 |
+| `max_treedepth` | 每次迭代允许的最大树深 | 10 |
+| `init` | 初值：数值、函数或列表 | 在无约束空间 $(-2, 2)$ 内随机 |
+| `refresh` | 每隔多少次迭代打印一次进度，0 表示不打印 | 100 |
+
+**预热**阶段，采样器一边走一边调整自己：找到合适的步长，并估计各参数的尺度（质量矩阵）。预热阶段的抽样默认不保存，也不用于推断。**正式抽样**阶段，采样器使用调好的设置，每一步都保存下来。
+
+### 第三步：认识拟合对象
+
+`fit_growth` 是一个 `CmdStanMCMC` 对象。最常用的方法：
+
+| 方法 | 作用 |
+|---|---|
+| `$summary()` | 后验汇总与收敛诊断 |
+| `$diagnostic_summary()` | 发散、树深、E-BFMI 的汇总 |
+| `$draws()` | 取出后验抽样 |
+| `$sampler_diagnostics()` | 每次迭代的采样器信息（步长、跳步数、是否发散等） |
+| `$output_files()` | Stan 写出的 CSV 文件路径 |
+| `$save_object()` | 把拟合结果保存为 `.rds` 文件 |
+
+## 后验整理与可视化
+
+### 先看诊断，再看结果
+
+拿到拟合结果后的第一件事，不是看参数估计，而是**确认这些估计可信**。
+
+```{r}
+#| label: diag-good
+fit_growth$diagnostic_summary()
+```
+
+```{r}
+#| label: summary-good
+fit_growth$summary(c("alpha", "beta", "sigma"))
+```
+
+逐项核对：
+
+| 指标 | 本次结果 | 判断标准 |
+|---|---|---|
+| 发散转移 `num_divergent` | 全为 0 | 应为 0 |
+| 达到最大树深 `num_max_treedepth` | 全为 0 | 应为 0 或极少 |
+| E-BFMI `ebfmi` | 都在 1 附近 | 不应低于 0.3 |
+| `rhat` | 1.00 | 小于 1.01 |
+| `ess_bulk`、`ess_tail` | 数千 | 每条链至少 100，4 条链合计至少 400 |
+
+全部通过，可以放心使用这些抽样。
+
+### 轨迹图
+
+轨迹图把每条链的抽样按迭代顺序画出来。健康的轨迹图应该像“毛毛虫”：几条链相互交织，围绕同一个区域快速上下波动。
+
+```{r}
+#| label: fig-trace-good
+#| fig-cap: "健康的轨迹图：四条链充分混合，没有趋势。"
+#| fig-height: 4.5
+fit_growth |>
+  gather_draws(alpha, beta, sigma) |>
+  ggplot(aes(x = .iteration, y = .value, colour = factor(.chain))) +
+  geom_line(linewidth = 0.2, alpha = 0.7) +
+  facet_wrap(~ .variable, ncol = 1, scales = "free_y") +
+  scale_colour_brewer(palette = "Set1") +
+  labs(x = "Iteration", y = NULL, colour = "Chain")
+```
+
+### 用 posterior 整理抽样
+
+posterior 宏包提供了几种 draws 格式，适合不同的用途：
+
+```{r}
+#| label: draws-formats
+draws_arr <- fit_growth$draws(c("alpha", "beta", "sigma"))   # draws_array
+dim(draws_arr)                                                # iteration x chain x variable
+
+draws_df <- as_draws_df(draws_arr)                            # one row per draw
+head(draws_df, 3)
+```
+
+`summarise_draws()` 可以自定义汇总量：
+
+```{r}
+#| label: summarise-custom
+draws_arr |>
+  summarise_draws(
+    mean, sd,
+    ~ quantile2(.x, probs = c(0.025, 0.975)),
+    default_convergence_measures()
+  )
+```
+
+`draws_rvars` 格式把每个变量变成一个“随机变量”对象，可以像普通数值一样做运算，结果自动保留所有抽样。例如，比较施肥 8 克与 2 克的期望高度：
+
+```{r}
+#| label: rvars
+draws_rv <- as_draws_rvars(draws_arr)
+x_bar <- mean(sim_data$dose)
+
+height_8 <- draws_rv$alpha + draws_rv$beta * (8 - x_bar)
+height_2 <- draws_rv$alpha + draws_rv$beta * (2 - x_bar)
+diff_8_2 <- height_8 - height_2
+
+diff_8_2
+Pr(diff_8_2 > 8)
+```
+
+`diff_8_2` 打印出来是“均值 ± 标准差”，背后保存着全部 4000 次抽样。`Pr()` 直接计算后验概率：施肥 8 克比 2 克平均高出 8 厘米以上的概率。
+
+### 用 tidybayes 整理抽样
+
+tidybayes 把抽样整理成**整洁数据**（每行一次抽样、每列一个变量），便于接入 tidyverse 和 ggplot2。
+
+```{r}
+#| label: tidybayes-spread
+fit_growth |>
+  spread_draws(alpha, beta) |>
+  head(3)
+```
+
+```{r}
+#| label: tidybayes-qi
+fit_growth |>
+  gather_draws(alpha, beta, sigma) |>
+  median_qi(.width = c(0.5, 0.95))
+```
+
+`median_qi()` 给出中位数和分位数区间；类似的还有 `mean_qi()`、`median_hdi()` 等。对于带下标的变量，`spread_draws(y_rep[i])` 会自动把下标拆成一列 `i`，方便与原始数据合并。
+
+```{r}
+#| label: fig-halfeye
+#| fig-cap: "β 的后验分布。点为中位数，粗线和细线分别是 66% 与 95% 区间。"
+#| fig-height: 2.5
+fit_growth |>
+  spread_draws(beta) |>
+  ggplot(aes(x = beta)) +
+  stat_halfeye(fill = f2s_colors[["post"]], alpha = 0.6) +
+  geom_vline(xintercept = beta_true, colour = f2s_colors[["truth"]], linewidth = 0.8) +
+  labs(x = "beta (cm per gram)", y = NULL) +
+  theme(axis.text.y = element_blank())
+```
+
+## 为什么这样写
+
+### 为什么要跑多条链？
+
+单条链无法判断自己是否已经“走遍”了后验。多条链从不同的初值出发，如果它们最终都在同一个区域内来回游走、彼此无法区分，我们才有理由相信它们探索的是同一个分布。**Rhat 正是在比较链与链之间的差异和链内部的差异。**
+
+### 失败案例一：预热太短
+
+把预热缩短到只有 10 次迭代：
+
+```{r}
+#| label: sample-short
+fit_short <- mod_growth$sample(
+  data = stan_data, seed = 2026, chains = 4, parallel_chains = 4,
+  iter_warmup = 10, iter_sampling = 200, refresh = 0
+)
+```
+
+```{r}
+#| label: diag-short
+fit_short$summary(c("alpha", "beta", "sigma"))
+fit_short$diagnostic_summary()
+```
+
+这一次，Rhat 超过了 1.01，ESS 只有几十，E-BFMI 也偏低。CmdStan 在运行时其实已经给出了提示：`No variance estimation is performed for num_warmup < 20`，即预热太短，连参数尺度都没有估计。轨迹图揭示了后果：
+
+```{r}
+#| label: fig-trace-short
+#| fig-cap: "预热太短时的轨迹图：部分链在开始阶段还没有找到后验的主体，步长也没有调好。"
+#| fig-height: 4.5
+fit_short |>
+  gather_draws(alpha, beta, sigma) |>
+  ggplot(aes(x = .iteration, y = .value, colour = factor(.chain))) +
+  geom_line(linewidth = 0.3, alpha = 0.8) +
+  facet_wrap(~ .variable, ncol = 1, scales = "free_y") +
+  scale_colour_brewer(palette = "Set1") +
+  labs(x = "Iteration", y = NULL, colour = "Chain")
+```
+
+10 次预热既不足以让链从初值走到后验的主体区域，也不足以调好步长和参数尺度。**这类问题的解决办法很简单：使用足够长的预热**（默认的 1000 次对大多数模型已经足够）。
+
+### 失败案例二：模型本身有问题
+
+第二个失败案例更值得警惕：采样设置完全正常，但**模型写错了**。下面的模型中，数据只能告诉我们 $a_1 + a_2$ 是多少，却无法区分 $a_1$ 和 $a_2$ 各是多少：
+
+```{r}
+#| echo: false
+#| class-output: stan
+#| comment: ""
+show_stan("stan/ch06_nonidentified.stan", "model")
+```
+
+```{r}
+#| label: sample-nonid
+mod_nonid <- cmdstan_model("stan/ch06_nonidentified.stan")
+
+fit_nonid <- mod_nonid$sample(
+  data = list(N = nrow(sim_data), y = sim_data$height),
+  seed = 2026, chains = 4, parallel_chains = 4, refresh = 0
+)
+```
+
+```{r}
+#| label: diag-nonid
+fit_nonid$summary(c("a1", "a2", "sigma"))
+fit_nonid$diagnostic_summary()
+```
+
+大量迭代达到了最大树深，$a_1$、$a_2$ 的 Rhat 偏高、ESS 很低。把两者的抽样画在一起，问题一目了然：
+
+```{r}
+#| label: fig-ridge-nonid
+#| fig-cap: "不可识别模型的后验：a₁ 与 a₂ 沿着 a₁ + a₂ = 常数 的直线分布，形成一条又细又长的脊。"
+#| fig-width: 5
+#| fig-height: 4
+fit_nonid |>
+  spread_draws(a1, a2) |>
+  ggplot(aes(x = a1, y = a2)) +
+  geom_point(alpha = 0.15, colour = f2s_colors[["post"]]) +
+  labs(x = "a1", y = "a2")
+```
+
+后验是一条细长的脊：沿脊的方向只受极宽的先验约束，可以延伸到几千；垂直于脊的方向则被数据严格限定。采样器为了沿着脊走得足够远，必须走非常多的跳步，于是频繁触及最大树深。
+
+**这时调大 `max_treedepth` 或延长采样只是治标。**真正的问题在模型：$a_1$ 和 $a_2$ 不可识别。练习 4 会给出正确的写法。
+
+### 诊断指标速查
+
+| 指标 | 衡量什么 | 出问题时的含义 | 常见对策 |
+|---|---|---|---|
+| Rhat | 链间差异与链内差异之比 | 链没有混合，或尚未收敛 | 检查模型；延长预热 |
+| ESS（bulk / tail） | 相当于多少个独立抽样 | 自相关强，估计不精确 | 检查参数化；延长采样 |
+| 发散转移 | 采样器在高曲率区域“失控” | 后验几何有陷阱，结果可能有偏 | 重新参数化（[第 12 章](ch12-non-centered.qmd)）；提高 `adapt_delta` |
+| 最大树深 | 轨迹需要很长才能走开 | 后验狭长或尺度差异大 | 检查可识别性；中心化或标准化 |
+| E-BFMI | 动量重采样能否有效改变能量 | 难以探索后验的尾部 | 重新参数化；更合理的先验 |
+
+一个被称为“统计计算民间定理”（folk theorem of statistical computing）的经验是：**当采样遇到困难时，问题往往出在模型上，而不是算法上** [@gelman2020workflow]。诊断指标的价值，在于提示你回头检查模型。
+
+### 为什么默认标准是 Rhat < 1.01、ESS > 400？
+
+早期文献常用 Rhat < 1.1 作为收敛标准。@vehtari2021rhat 提出了改进的 Rhat（秩归一化、折叠），并建议使用更严格的 1.01，同时要求 bulk-ESS 和 tail-ESS 都足够大：4 条链时合计至少 400。bulk-ESS 关注分布中心（影响均值、中位数的估计），tail-ESS 关注分布尾部（影响区间端点的估计）。posterior 宏包的 `rhat()`、`ess_bulk()`、`ess_tail()` 实现的正是这些改进版本。
+
+## 常见错误
+
+| 错误做法 | 后果 | 正确做法 |
+|---|---|---|
+| 只看参数估计，不看诊断 | 可能基于没有收敛的抽样下结论 | 先看 `$diagnostic_summary()` 和 Rhat、ESS |
+| 只跑 1 条链 | 无法计算有意义的 Rhat | 至少 4 条链 |
+| 不设 `seed` | 结果无法复现 | 每次采样都设置随机种子 |
+| 出现发散就直接调高 `adapt_delta` 到 0.99 | 可能掩盖模型的几何问题 | 先考虑重新参数化，再调整采样参数 |
+| 达到最大树深就调大 `max_treedepth` | 运行变慢，根本问题仍在 | 检查可识别性和参数尺度 |
+| 把预热阶段的抽样用于推断 | 结果有偏 | 只使用正式抽样（cmdstanr 默认如此） |
+
+## 练习
+
+**练习 1　读一份诊断报告**
+
+某次运行的结果为：`beta` 的 Rhat = 1.04，`ess_bulk` = 85，`ess_tail` = 60，没有发散，没有达到最大树深。你会怎么判断？下一步做什么？
+
+::: {.callout-tip collapse="true"}
+## 参考答案
+
+Rhat 超过 1.01，ESS 远低于 400，说明链之间尚未充分混合，有效样本太少，`beta` 的估计和区间都不可靠，不能直接报告。
+
+下一步：(1) 看轨迹图，判断是“还没收敛”（链之间有明显差别或有趋势）还是“收敛了但混合慢”（链交织在一起，但自相关很强）；(2) 前者先检查模型与初值，再延长预热；后者检查参数之间是否有强相关（比如[第 5 章](ch05-linear-regression.qmd)中没有中心化的回归），考虑重新参数化；(3) 仅在模型确实没有问题时，才通过增加迭代次数来提高 ESS。
+:::
+
+**练习 2　看看采样器的“工作量”**
+
+用 `$sampler_diagnostics()` 取出正常运行和预热太短两次运行中每次迭代的步长（`stepsize__`）和跳步数（`n_leapfrog__`），比较两者。
+
+::: {.callout-tip collapse="true"}
+## 参考答案
+
+```{r}
+#| label: ex2
+bind_rows(
+  fit_growth$sampler_diagnostics(format = "df") |> mutate(run = "warmup = 1000"),
+  fit_short$sampler_diagnostics(format = "df") |> mutate(run = "warmup = 10")
+) |>
+  group_by(run, .chain) |>
+  summarise(
+    stepsize   = mean(stepsize__),
+    n_leapfrog = mean(n_leapfrog__),
+    .groups    = "drop"
+  )
+```
+
+预热充分时，四条链调出的步长相近（约 0.7–0.8），每次迭代只需要五个左右的跳步。预热太短时，步长远远小于这个水平，链与链之间也不一致；步长太小，每次迭代就要走几十个跳步才能移动一段像样的距离。找到合适的步长，正是预热阶段要完成的“自我调整”。
+:::
+
+**练习 3　用 rvar 回答研究问题**
+
+用本章的 `draws_rv`，计算剂量每增加 1 克带来的高度增量（即 $\beta$）大于 1 厘米的后验概率，以及 $\sigma$ 的 90% 区间。
+
+::: {.callout-tip collapse="true"}
+## 参考答案
+
+```{r}
+#| label: ex3
+Pr(draws_rv$beta > 1)
+quantile(draws_rv$sigma, probs = c(0.05, 0.95))
+```
+
+rvar 让“对后验做运算”和“对普通数值做运算”看起来一样，而结果始终保留完整的不确定性。
+:::
+
+**练习 4　修复不可识别的模型**
+
+改写 `stan/ch06_nonidentified.stan`，使模型可以识别，并比较修改前后的诊断结果。
+
+::: {.callout-tip collapse="true"}
+## 参考答案
+
+数据只能告诉我们 $a_1 + a_2$。既然如此，就只用一个参数 $\mu$ 表示它。参考写法保存在 `stan/ch06_ex4_identified.stan`：
+
+```{r}
+#| echo: false
+#| class-output: stan
+#| comment: ""
+show_stan("stan/ch06_ex4_identified.stan", "parameters")
+```
+
+```{r}
+#| label: ex4
+fit_id <- cmdstan_model("stan/ch06_ex4_identified.stan")$sample(
+  data = list(N = nrow(sim_data), y = sim_data$height),
+  seed = 2026, chains = 4, parallel_chains = 4, refresh = 0
+)
+
+fit_id$summary(c("mu", "sigma"))
+fit_id$diagnostic_summary()
+```
+
+所有诊断指标恢复正常。$\mu$ 的估计与原模型中 $a_1 + a_2$ 的后验相同，但采样器的工作轻松得多。如果研究问题确实需要区分两个量，就必须提供能区分它们的数据或有信息的先验。
+:::
+
+## 小结
+
+- 运行分三步：`cmdstan_model()` 编译，`$sample()` 采样，再从拟合对象中取出结果。
+- **先看诊断，再看结果**：发散为 0、没有达到最大树深、E-BFMI 不低于 0.3、Rhat < 1.01、ESS 足够大。
+- 预热太短是采样设置的问题，延长预热即可；参数不可识别是模型的问题，必须改模型。
+- posterior 负责汇总与运算（`summarise_draws()`、rvar、`Pr()`），tidybayes 负责把抽样整理成整洁数据并画图（`spread_draws()`、`median_qi()`、`stat_halfeye()`）。
+
+## 延伸
+
+- 下一章：[第 7 章　Logistic：只换似然](ch07-logistic.qmd)。
+- 发散转移是诊断中最重要、也最难理解的一项，[第 11 章](ch11-funnel.qmd)会专门制造并分析它。
+
+## 参考资料
+
+- 改进的 Rhat 与 bulk/tail ESS 见 @vehtari2021rhat。
+- 采样器的工作原理与各项诊断的直观解释见 @betancourt2017conceptual。
+- “出现计算问题时先检查模型”的工作流程，见 @gelman2020workflow。
+- Stan Reference Manual 的 *MCMC Sampling* 一章介绍了 NUTS、预热调整和诊断量的定义 [@stan2026reference]。
+- 用 ggplot2 画诊断图与后验图的方法，见 @gabry2019visualization。
+
+::: {#refs}
+:::

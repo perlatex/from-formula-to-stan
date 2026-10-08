@@ -1,0 +1,14 @@
+/.quarto/
+/_site/
+.Rproj.user/
+.Rhistory
+.RData
+.DS_Store
+
+# Compiled Stan executables (keep only the .stan sources)
+stan/*
+!stan/*.stan
+
+# Note: _freeze/ is intentionally committed (see README)
+
+**/*.quarto_ipynb
